@@ -1,0 +1,3220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Florida Lottery PICK 2 — Analytics Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+ :root {
+ --bg: #f5f6fa; --card: #ffffff; --border: #dce1e8;
+ --text: #1a2332; --muted: #5c6a7a; --accent: #003366;
+ --green: #00a651; --red: #dc3545; --yellow: #c8960c;
+ --blue: #0072ce; --purple: #003366; --orange: #e67e22;
+ --hot: #dc3545; --cold: #0072ce; --neutral: #6c757d;
+ --gold: #ffc107;
+ }
+ * { margin:0; padding:0; box-sizing:border-box; }
+ body { background:var(--bg); color:var(--text); font-family:'Segoe UI',system-ui,-apple-system,sans-serif; line-height:1.5; }
+
+ .header { background:linear-gradient(135deg,#002244 0%,#003d73 100%); padding:28px 32px; border-bottom:3px solid var(--gold); }
+ .header h1 { font-size:26px; font-weight:700; color:#fff; }
+ .header h1 span { color:var(--gold); }
+ .header .meta { color:rgba(255,255,255,0.85); font-size:13px; margin-top:4px; }
+ .header .meta b { color:#fff; }
+
+ .tabs { display:flex; gap:0; background:#fff; border-bottom:2px solid var(--border); padding:0 24px; overflow-x:auto; box-shadow:0 1px 3px rgba(0,0,0,0.06); }
+ .tab { padding:14px 22px; cursor:pointer; font-size:13px; font-weight:600; color:var(--muted);
+ border-bottom:2px solid transparent; margin-bottom:-2px; white-space:nowrap; transition:.2s; }
+ .tab:hover { color:var(--accent); }
+ .tab.active { color:var(--accent); border-bottom-color:var(--gold); }
+
+ .content { max-width:1400px; margin:0 auto; padding:24px; }
+ .section { display:none; }
+ .section.active { display:block; }
+
+ .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+ .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; }
+ @media(max-width:900px){ .grid2,.grid3{grid-template-columns:1fr;} }
+
+ .card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:20px; box-shadow:0 1px 4px rgba(0,0,0,0.04); }
+ .card h3 { font-size:15px; font-weight:600; margin-bottom:14px; color:var(--accent); }
+ .card h3 .sub { font-size:11px; color:var(--muted); font-weight:400; display:block; margin-top:2px; }
+
+ table { width:100%; border-collapse:collapse; font-size:13px; }
+ th { text-align:left; padding:8px 10px; border-bottom:2px solid var(--border); color:var(--muted); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.5px; }
+ td { padding:7px 10px; border-bottom:1px solid #eef0f4; }
+ tr:hover td { background:rgba(0,51,102,0.04); }
+
+ .badge { display:inline-block; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600; }
+ .badge-hot { background:rgba(220,53,69,0.1); color:var(--hot); }
+ .badge-cold { background:rgba(0,114,206,0.1); color:var(--cold); }
+ .badge-neutral { background:rgba(108,117,125,0.1); color:var(--neutral); }
+
+ .bar { height:6px; border-radius:3px; background:#e9ecef; position:relative; overflow:hidden; }
+ .bar-fill { height:100%; border-radius:3px; transition:width .5s ease; }
+
+ .score-bar { display:flex; align-items:center; gap:8px; }
+ .score-val { font-size:12px; font-weight:700; min-width:38px; text-align:right; }
+
+ .rec-card { background:linear-gradient(135deg,rgba(0,51,102,0.05),rgba(0,114,206,0.03));
+ border:1px solid rgba(0,51,102,0.15); border-radius:10px; padding:16px; text-align:center; }
+ .rec-num { font-size:38px; font-weight:800; color:var(--accent); letter-spacing:2px; }
+ .rec-score { font-size:12px; color:var(--muted); margin-top:4px; }
+ .rec-detail { font-size:11px; color:var(--muted); margin-top:8px; line-height:1.7; }
+ .rec-detail b { color:var(--text); }
+
+ .kpi-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px; margin-bottom:24px; }
+ .kpi { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px 18px; box-shadow:0 1px 3px rgba(0,0,0,0.04); }
+ .kpi .label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; }
+ .kpi .value { font-size:24px; font-weight:700; margin-top:4px; }
+ .kpi .value.green { color:var(--green); }
+ .kpi .value.red { color:var(--red); }
+ .kpi .value.blue { color:var(--blue); }
+ .kpi .value.purple { color:var(--accent); }
+
+ .chart-wrap { position:relative; height:300px; }
+
+ .heatmap-grid { display:grid; grid-template-columns:repeat(10,1fr); gap:2px; }
+ .heatmap-cell { aspect-ratio:1; display:flex; align-items:center; justify-content:center;
+ border-radius:4px; font-size:10px; font-weight:700; cursor:pointer; transition:.2s; position:relative; }
+ .heatmap-cell:hover { transform:scale(1.15); z-index:2; }
+ .heatmap-cell .tooltip { display:none; position:absolute; bottom:110%; left:50%; transform:translateX(-50%);
+ background:#1a2332; color:#fff; padding:6px 10px; border-radius:6px; font-size:11px;
+ white-space:nowrap; z-index:10; }
+ .heatmap-cell:hover .tooltip { display:block; }
+
+ .legend { display:flex; gap:16px; margin-top:10px; font-size:11px; color:var(--muted); }
+ .legend-item { display:flex; align-items:center; gap:4px; }
+ .legend-dot { width:10px; height:10px; border-radius:50%; }
+
+ .disclaimer { margin-top:30px; padding:16px; background:rgba(220,53,69,0.04); border:1px solid rgba(220,53,69,0.15);
+ border-radius:8px; font-size:11px; color:#8b2131; line-height:1.6; }
+</style>
+</head>
+<body>
+
+<div class="header">
+ <h1>Florida Lottery <span>PICK 2</span>— Analytics Dashboard</h1>
+ <div class="meta" id="metaInfo"></div>
+</div>
+
+<div class="tabs" id="tabBar">
+ <div class="tab active" data-tab="overview">Overview</div>
+ <div class="tab" data-tab="drought">Drought</div>
+ <div class="tab" data-tab="frequency">Frequency</div>
+ <div class="tab" data-tab="hotcold">Hot &amp; Cold</div>
+ <div class="tab" data-tab="heatmap">Heatmap</div>
+ <div class="tab" data-tab="math">Math Sequences</div>
+ <div class="tab" data-tab="advanced">Advanced Math</div>
+ <div class="tab" data-tab="stats">Statistics</div>
+ <div class="tab" data-tab="trends">Trends</div>
+ <div class="tab" data-tab="fireball">Fireball</div>
+ <div class="tab" data-tab="eveningmidday">Evening vs Midday</div>
+ <div class="tab" data-tab="crossref">Cross-Reference</div>
+ <div class="tab" data-tab="recommend">Recommendations</div>
+ <div class="tab" data-tab="ultimate">Ultimate Picks</div>
+ <div class="tab" data-tab="finalpicks">Final Picks</div>
+ <div class="tab" data-tab="aimeta">AI Analysis</div>
+ <div class="tab" data-tab="backtest">Historical Validation</div>
+ <div class="tab" data-tab="scratchoff">Scratch-Off 200X</div>
+</div>
+
+<div class="content">
+
+ <!-- ============ OVERVIEW ============ -->
+ <div class="section active" id="sec-overview">
+ <div class="kpi-row" id="kpiRow"></div>
+ <div class="grid2">
+ <div class="card">
+ <h3>Digit Drought Summary <span class="sub">Draws since each digit last appeared (any position)</span></h3>
+ <div class="chart-wrap"><canvas id="chartDroughtOverview"></canvas></div>
+ </div>
+ <div class="card">
+ <h3>Overall Digit Frequency <span class="sub">Total appearances across all draws</span></h3>
+ <div class="chart-wrap"><canvas id="chartFreqOverview"></canvas></div>
+ </div>
+ </div>
+ <div style="margin-top:20px">
+ <div class="card">
+ <h3>Top 10 Recommended Pairs <span class="sub">Based on drought, frequency deviation, momentum &amp; trend</span></h3>
+ <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px;" id="topRecsOverview"></div>
+ </div>
+ </div>
+ </div>
+
+ <!-- ============ DROUGHT ============ -->
+ <div class="section" id="sec-drought">
+ <div class="grid2">
+ <div class="card">
+ <h3>Individual Digit Drought <span class="sub">Draws since each digit (0-9) last appeared in each position</span></h3>
+ <table>
+ <thead><tr><th>Digit</th><th>Position 1</th><th>Position 2</th><th>Either</th><th>Last Seen (Pos1)</th><th>Last Seen (Pos2)</th></tr></thead>
+ <tbody id="tbDroughtDigits"></tbody>
+ </table>
+ </div>
+ <div class="card">
+ <h3>Digit Drought Chart <span class="sub">Visual comparison by position</span></h3>
+ <div class="chart-wrap"><canvas id="chartDroughtDetail"></canvas></div>
+ </div>
+ </div>
+ <div style="margin-top:20px">
+ <div class="card">
+ <h3>Top 30 Most Overdue Pairs <span class="sub">Pairs that haven't appeared for the longest</span></h3>
+ <table>
+ <thead><tr><th>#</th><th>Pair</th><th>Draws Ago</th><th>Last Seen</th><th>Drought Bar</th></tr></thead>
+ <tbody id="tbDroughtPairs"></tbody>
+ </table>
+ </div>
+ </div>
+ </div>
+
+ <!-- ============ FREQUENCY ============ -->
+ <div class="section" id="sec-frequency">
+ <div class="grid2">
+ <div class="card">
+ <h3>Digit Frequency Table <span class="sub">Observed counts vs expected (uniform distribution)</span></h3>
+ <table>
+ <thead><tr><th>Digit</th><th>Pos1</th><th>Pos2</th><th>Total</th><th>Expected</th><th>Deviation</th></tr></thead>
+ <tbody id="tbFreqDigits"></tbody>
+ </table>
+ </div>
+ <div class="card">
+ <h3>Frequency Deviation Chart <span class="sub">% above/below expected</span></h3>
+ <div class="chart-wrap"><canvas id="chartFreqDev"></canvas></div>
+ </div>
+ </div>
+ <div style="margin-top:20px" class="grid2">
+ <div class="card">
+ <h3>Most Overrepresented Pairs</h3>
+ <table>
+ <thead><tr><th>Pair</th><th>Count</th><th>Expected</th><th>Deviation</th></tr></thead>
+ <tbody id="tbFreqPairsHigh"></tbody>
+ </table>
+ </div>
+ <div class="card">
+ <h3>Most Underrepresented Pairs</h3>
+ <table>
+ <thead><tr><th>Pair</th><th>Count</th><th>Expected</th><th>Deviation</th></tr></thead>
+ <tbody id="tbFreqPairsLow"></tbody>
+ </table>
+ </div>
+ </div>
+ </div>
+
+ <!-- ============ HOT & COLD ============ -->
+ <div class="section" id="sec-hotcold">
+ <div class="grid2">
+ <div class="card">
+ <h3>Hot / Cold — Last 100 Draws <span class="sub">Digits above/below expected frequency recently</span></h3>
+ <table>
+ <thead><tr><th>Digit</th><th>Recent Count</th><th>Expected</th><th>Ratio</th><th>Status</th></tr></thead>
+ <tbody id="tbHotCold100"></tbody>
+ </table>
+ </div>
+ <div class="card">
+ <h3>Hot / Cold — Last 50 Draws</h3>
+ <table>
+ <thead><tr><th>Digit</th><th>Recent Count</th><th>Expected</th><th>Ratio</th><th>Status</th></tr></thead>
+ <tbody id="tbHotCold50"></tbody>
+ </table>
+ </div>
+ </div>
+ <div style="margin-top:20px">
+ <div class="card">
+ <h3>Hot / Cold Comparison Chart</h3>
+ <div class="chart-wrap"><canvas id="chartHotCold"></canvas></div>
+ </div>
+ </div>
+ </div>
+
+ <!-- ============ HEATMAP ============ -->
+ <div class="section" id="sec-heatmap">
+ <div class="card">
+ <h3>Pair Drought Heatmap (10×10) <span class="sub">Rows = 1st digit, Cols = 2nd digit. Darker = longer drought (more overdue)</span></h3>
+ <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;font-size:12px;color:var(--muted)">
+ <span>Recent</span>
+ <div style="width:180px;height:12px;border-radius:6px;background:linear-gradient(90deg,#00a651,#c8960c,#dc3545,#c82333)"></div>
+ <span>Overdue</span>
+ </div>
+ <div style="display:grid;grid-template-columns:30px repeat(10,1fr);gap:2px;max-width:600px">
+ <div></div>
+ <div style="text-align:center;font-size:11px;color:var(--muted);font-weight:700" id="heatColHeaders"></div>
+ </div>
+ <div style="display:grid;grid-template-columns:30px repeat(10,1fr);gap:2px;max-width:600px" id="heatmapGrid"></div>
+ </div>
+ <div style="margin-top:20px">
+ <div class="card">
+ <h3>Pair Frequency Heatmap <span class="sub">Brighter = appeared more often</span></h3>
+ <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;font-size:12px;color:var(--muted)">
+ <span>Rare</span>
+ <div style="width:180px;height:12px;border-radius:6px;background:linear-gradient(90deg,#e0e4ea,#003366,#0072ce)"></div>
+ <span>Frequent</span>
+ </div>
+ <div style="display:grid;grid-template-columns:30px repeat(10,1fr);gap:2px;max-width:600px" id="heatmapFreqGrid"></div>
+ </div>
+ </div>
+ </div>
+
+ <!-- ============ STATISTICAL TESTS ============ -->
+ <div class="section" id="sec-stats">
+ <div class="card" style="margin-bottom:20px">
+ <h3>Chi-Square Goodness-of-Fit Tests <span class="sub">Testing whether digit/pair distributions are statistically uniform</span></h3>
+ <table>
+ <thead><tr><th>Test</th><th>χ² Statistic</th><th>p-value</th><th>Degrees of Freedom</th><th>Result</th></tr></thead>
+ <tbody id="tbChiSquare"></tbody>
+ </table>
+ <div style="margin-top:14px;font-size:12px;color:var(--muted);line-height:1.7">
+ <b>Interpretation:</b> If p-value &gt; 0.05, the distribution is consistent with uniform randomness
+ (we <em>cannot</em> reject the null hypothesis of uniformity). A low p-value (&lt; 0.05) suggests
+ statistically significant deviation from uniform distribution.
+ </div>
+ </div>
+ <div class="grid2">
+ <div class="card">
+ <h3>Benford's Law vs Actual vs Uniform <span class="sub">Leading digit distribution comparison</span></h3>
+ <div class="chart-wrap"><canvas id="chartBenford"></canvas></div>
+ <div style="margin-top:10px;font-size:11px;color:var(--muted);line-height:1.6" id="benfordExplanation"></div>
+ </div>
+ <div class="card">
+ <h3>Randomness Tests <span class="sub">Runs tests for sequential randomness</span></h3>
+ <table>
+ <thead><tr><th>Test</th><th>Runs</th><th>Expected</th><th>Z-score</th><th>p-value</th><th>Random?</th></tr></thead>
+ <tbody id="tbRunsTest"></tbody>
+ </table>
+ <div style="margin-top:14px;font-size:12px;color:var(--muted);line-height:1.7">
+ <b>Runs test</b> checks if the sequence has the expected number of "runs" (consecutive same-class values).
+ Too few runs = clustering; too many = alternating pattern. Random ↔ p &gt; 0.05.
+ </div>
+ </div>
+ </div>
+ <div style="margin-top:20px" class="grid2">
+ <div class="card">
+ <h3>Shannon Entropy <span class="sub">Information-theoretic randomness measure</span></h3>
+ <div class="kpi-row" style="margin-bottom:0">
+ <div class="kpi"><div class="label">Pair Entropy</div><div class="value blue" id="entropyVal"></div></div>
+ <div class="kpi"><div class="label">Max Possible</div><div class="value purple" id="entropyMax"></div></div>
+ <div class="kpi"><div class="label">Efficiency</div><div class="value green" id="entropyEff"></div></div>
+ </div>
+ <div style="margin-top:12px;font-size:11px;color:var(--muted)" id="entropyInterpretation"></div>
+ <div style="margin-top:14px"><h3>Entropy Over Time</h3></div>
+ <div class="chart-wrap"><canvas id="chartEntropy"></canvas></div>
+ </div>
+ <div class="card">
+ <h3>Consecutive Draw Deltas <span class="sub">Differences between sequential draws</span></h3>
+ <div class="kpi-row" style="margin-bottom:12px">
+ <div class="kpi"><div class="label">Exact Repeats</div><div class="value red" id="deltaRepeats"></div></div>
+ <div class="kpi"><div class="label">Avg Delta</div><div class="value blue" id="deltaAvg"></div></div>
+ </div>
+ <div class="chart-wrap"><canvas id="chartDeltas"></canvas></div>
+ </div>
+ </div>
+ <div style="margin-top:20px" class="grid2">
+ <div class="card">
+ <h3>Position 1 — Observed vs Expected</h3>
+ <div class="chart-wrap"><canvas id="chartChiPos1"></canvas></div>
+ </div>
+ <div class="card">
+ <h3>Position 2 — Observed vs Expected</h3>
+ <div class="chart-wrap"><canvas id="chartChiPos2"></canvas></div>
+ </div>
+ </div>
+ </div>
+
+ <!-- ============ MATH SEQUENCES ============ -->
+ <div class="section" id="sec-math">
+ <div class="kpi-row" id="mathKpis"></div>
+
+ <div class="grid2">
+ <div class="card">
+ <h3>Fibonacci Numbers <span class="sub">Pairs that are Fibonacci: 00,01,02,03,05,08,13,21,34,55,89</span></h3>
+ <table>
+ <thead><tr><th>Metric</th><th>Value</th><th>Expected</th><th>Status</th></tr></thead>
+ <tbody id="tbFibSummary"></tbody>
+ </table>
+ <div style="margin-top:16px"><h3 style="font-size:13px">Fibonacci Number Frequency</h3></div>
+ <div class="chart-wrap"><canvas id="chartFibBreakdown"></canvas></div>
+ </div>
+ <div class="card">
+ <h3>Prime Numbers <span class="sub">25 primes between 00-99</span></h3>
+ <table>
+ <thead><tr><th>Metric</th><th>Value</th><th>Expected</th><th>Status</th></tr></thead>
+ <tbody id="tbPrimeSummary"></tbody>
+ </table>
+ <div style="margin-top:16px"><h3 style="font-size:13px">Top / Bottom Prime Pairs</h3></div>
+ <div class="chart-wrap"><canvas id="chartPrimeTopBottom"></canvas></div>
+ </div>
+ </div>
+
+ <div style="margin-top:20px" class="grid2">
+ <div class="card">
+ <h3>Fibonacci Gap Repeat Analysis <span class="sub">Do draws at Fibonacci-spaced intervals tend to repeat?</span></h3>
+ <table>
+ <thead><tr><th>Gap (draws)</th><th>Matches</th><th>Compared</th><th>Match %</th><th>Expected %</th><th>Ratio</th></tr></thead>
+ <tbody id="tbFibGaps"></tbody>
+ </table>
+ <div style="margin-top:10px;font-size:11px;color:var(--muted)">
+ If ratio ≈ 1.0, the Fibonacci gap has no special repeating power. Ratio &gt; 1.3 would be notable.
+ </div>
+ </div>
+ <div class="card">
+ <h3>Golden Ratio (φ) Pairs <span class="sub">Digit pairs whose ratio ≈ 1.618 or 0.618</span></h3>
+ <table>
+ <thead><tr><th>Pair</th><th>Ratio d1/d2</th><th>Distance to φ</th><th>Type</th></tr></thead>
+ <tbody id="tbGoldenPairs"></tbody>
+ </table>
+ <div style="margin-top:10px;font-size:11px;color:var(--muted)" id="goldenStats"></div>
+ </div>
+ </div>
+
+ <div style="margin-top:20px" class="grid3">
+ <div class="card">
+ <h3>Triangular Numbers <span class="sub">0,1,3,6,10,15,21,28,36,45,55,66,78,91</span></h3>
+ <table>
+ <thead><tr><th>Number</th><th>Count</th></tr></thead>
+ <tbody id="tbTriangular"></tbody>
+ </table>
+ <div style="margin-top:8px;font-size:12px;color:var(--muted)" id="triangularStats"></div>
+ </div>
+ <div class="card">
+ <h3>⬛ Perfect Squares <span class="sub">0,1,4,9,16,25,36,49,64,81</span></h3>
+ <table>
+ <thead><tr><th>Number</th><th>Count</th></tr></thead>
+ <tbody id="tbSquares"></tbody>
+ </table>
+ <div style="margin-top:8px;font-size:12px;color:var(--muted)" id="squareStats"></div>
+ </div>
+ <div class="card">
+ <h3>Doubles <span class="sub">00,11,22,...,99</span></h3>
+ <div id="doublesStats" style="font-size:13px;margin-bottom:12px"></div>
+ <div class="chart-wrap"><canvas id="chartDoubles"></canvas></div>
+ </div>
+ </div>
+ </div>
+
+ <!-- ============ ADVANCED MATH ============ -->
+ <div class="section" id="sec-advanced">
+ <div class="grid2">
+ <div class="card">
+ <h3>Pi (π) Digit Analysis <span class="sub">Comparing draw sequence to the digits of π</span></h3>
+ <div id="piStats" style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.8"></div>
+ <h3 style="font-size:13px">First 20 Pi Pairs vs Drawn</h3>
+ <table>
+ <thead><tr><th>#</th><th>π Pair</th><th>Status</th></tr></thead>
+ <tbody id="tbPiPairs"></tbody>
+ </table>
+ </div>
+ <div class="card">
+ <h3>Digit Sum Distribution <span class="sub">Sum of two drawn digits (0–18)</span></h3>
+ <div class="chart-wrap" style="height:250px"><canvas id="chartDigitSum"></canvas></div>
+ <div style="margin-top:14px"><h3 style="font-size:13px">Digit Sum Drought</h3></div>
+ <table>
+ <thead><tr><th>Sum</th><th>Count</th><th>Expected</th><th>Deviation</th><th>Drought</th><th>Special</th></tr></thead>
+ <tbody id="tbDigitSum"></tbody>
+ </table>
+ </div>
+ </div>
+
+ <div style="margin-top:20px" class="grid2">
+ <div class="card">
+ <h3>Modular Arithmetic <span class="sub">Digit sum patterns mod 2, 3, 5, 9</span></h3>
+ <div id="modularTables"></div>
+ </div>
+ <div class="card">
+ <h3>Markov Chain — Next-Digit Predictions <span class="sub">Transition probabilities from last drawn digit</span></h3>
+ <div id="markovContent"></div>
+ </div>
+ </div>
+
+ <div style="margin-top:20px">
+ <div class="card">
+ <h3>Mathematical Super-Recommendation <span class="sub">Pairs scored by mathematical properties + drought + frequency</span></h3>
+ <div style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.7">
+ Each pair earns points for matching: <b style="color:#c8960c">Fibonacci</b>,
+ <b style="color:#003366">Prime</b>, <b style="color:#00a651">Triangular</b>,
+ <b style="color:#0072ce">Square</b>, <b style="color:#dc3545">Golden Ratio</b>,
+ <b style="color:#0072ce">Doubles</b>, plus digit-level and digit-sum properties, drought, and under-frequency.
+ </div>
+ <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px;margin-bottom:20px" id="mathRecsGrid"></div>
+ <div class="chart-wrap" style="height:350px"><canvas id="chartMathRecs"></canvas></div>
+ </div>
+ </div>
+ </div>
+
+ <!-- ============ TRENDS ============ -->
+ <div class="section" id="sec-trends">
+ <div class="card">
+ <h3>Digit Share Over Time <span class="sub">Moving average of each digit's frequency share (window=200 draws)</span></h3>
+ <div style="height:400px"><canvas id="chartTrend"></canvas></div>
+ <div style="margin-top:8px;font-size:11px;color:var(--muted)">
+ Horizontal dashed line = expected share (10%). Deviations show trending digits.
+ </div>
+ </div>
+ </div>
+
+ <!-- ============ RECOMMENDATIONS ============ -->
+ <div class="section" id="sec-recommend">
+ <div class="card" style="margin-bottom:20px">
+ <h3>How Recommendations Are Calculated</h3>
+ <div style="font-size:13px;color:var(--muted);line-height:1.8">
+ Each pair receives a <b>composite score</b> (0–1) based on:<br>
+ • <b style="color:var(--accent)">40% Drought</b>— How many draws since it last appeared (longer = higher)<br>
+ • <b style="color:var(--blue)">30% Frequency Deviation</b>— Underrepresented vs expected (more under = higher)<br>
+ • <b style="color:var(--cold)">15% Cold Momentum</b>— If its digits are currently cold in last 100 draws<br>
+ • <b style="color:var(--yellow)">15% Trend Reversion</b>— If its digits are trending below expected (mean-reversion signal)<br><br>
+ <b style="color:var(--red)">Disclaimer:</b> Lottery draws are independent random events.
+ Past results do NOT influence future outcomes. This analysis is for entertainment and educational purposes only.
+ </div>
+ </div>
+
+ <h3 style="margin-bottom:14px;font-size:16px">Top Recommended Pairs</h3>
+ <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;margin-bottom:28px" id="recPairsGrid"></div>
+
+ <div class="grid2">
+ <div class="card">
+ <h3>Recommended Digits — Position 1 <span class="sub">Best picks for the first digit</span></h3>
+ <table>
+ <thead><tr><th>Rank</th><th>Digit</th><th>Score</th><th>Drought</th><th>Frequency</th><th>Hot/Cold</th></tr></thead>
+ <tbody id="tbRecDigits1"></tbody>
+ </table>
+ </div>
+ <div class="card">
+ <h3>Recommended Digits — Position 2 <span class="sub">Best picks for the second digit</span></h3>
+ <table>
+ <thead><tr><th>Rank</th><th>Digit</th><th>Score</th><th>Drought</th><th>Frequency</th><th>Hot/Cold</th></tr></thead>
+ <tbody id="tbRecDigits2"></tbody>
+ </table>
+ </div>
+ </div>
+
+ <div class="card" style="margin-top:20px">
+ <h3>Pair Recommendation Breakdown <span class="sub">Score components for top pairs</span></h3>
+ <div class="chart-wrap" style="height:350px"><canvas id="chartRecBreakdown"></canvas></div>
+ </div>
+
+ <div class="disclaimer">
+ <b>IMPORTANT DISCLAIMER:</b> Lottery drawings are purely random, independent events.
+ No mathematical system, algorithm, or statistical analysis can predict or improve your chances of winning.
+ The "recommendations" above are based on historical pattern analysis (drought, frequency deviation, mean-reversion)
+ which are <u>not</u> predictive for truly random processes. This dashboard is for <b>educational and entertainment purposes only</b>.
+ Please gamble responsibly.
+ </div>
+ </div>
+
+ <!-- ============ FIREBALL ============ -->
+ <div class="section" id="sec-fireball">
+ <div class="kpi-row" id="fbKpiRow"></div>
+ <div class="grid2">
+ <div class="card">
+ <h3>Fireball Digit Frequency <span class="sub">How often each Fireball digit appeared</span></h3>
+ <div class="chart-wrap"><canvas id="chartFbFreq"></canvas></div>
+ </div>
+ <div class="card">
+ <h3>Fireball Drought <span class="sub">Draws since each Fireball digit last appeared</span></h3>
+ <div class="chart-wrap"><canvas id="chartFbDrought"></canvas></div>
+ </div>
+ </div>
+ <div class="grid2" style="margin-top:20px">
+ <div class="card">
+ <h3>Fireball Hot &amp; Cold <span class="sub">Recent 100 draws</span></h3>
+ <table>
+ <thead><tr><th>Digit</th><th>Count</th><th>Expected</th><th>Ratio</th><th>Status</th></tr></thead>
+ <tbody id="tbFbHotCold"></tbody>
+ </table>
+ </div>
+ <div class="card">
+ <h3>Fireball Matches <span class="sub">When Fireball equals Number1 or Number2</span></h3>
+ <div id="fbMatchInfo" style="font-size:14px;line-height:2"></div>
+ <h3 style="margin-top:16px">Top 20 Triplets (Number + Fireball)</h3>
+ <table>
+ <thead><tr><th>#</th><th>Triplet</th><th>Count</th></tr></thead>
+ <tbody id="tbFbTriplets"></tbody>
+ </table>
+ </div>
+ </div>
+ <div class="grid2" style="margin-top:20px">
+ <div class="card">
+ <h3>Fireball: Evening vs Midday <span class="sub">Frequency comparison by draw type</span></h3>
+ <div class="chart-wrap"><canvas id="chartFbEM"></canvas></div>
+ </div>
+ <div class="card">
+ <h3>Fireball Recommendations <span class="sub">Best Fireball digits to watch</span></h3>
+ <table>
+ <thead><tr><th>Rank</th><th>Digit</th><th>Score</th><th>Drought</th><th>Hot/Cold</th></tr></thead>
+ <tbody id="tbFbRecs"></tbody>
+ </table>
+ </div>
+ </div>
+ </div>
+
+ <!-- ============ EVENING vs MIDDAY ============ -->
+ <div class="section" id="sec-eveningmidday">
+ <div class="grid2">
+ <div class="card">
+ <h3>Evening — Digit Frequency <span class="sub">Digit frequency in Evening draws</span></h3>
+ <div class="chart-wrap"><canvas id="chartEmEveFreq"></canvas></div>
+ </div>
+ <div class="card">
+ <h3>Midday — Digit Frequency <span class="sub">Digit frequency in Midday draws</span></h3>
+ <div class="chart-wrap"><canvas id="chartEmMidFreq"></canvas></div>
+ </div>
+ </div>
+ <div class="card" style="margin-top:20px">
+ <h3>Evening vs Midday Divergence <span class="sub">Where digits are favored differently</span></h3>
+ <div class="chart-wrap"><canvas id="chartEmDivergence"></canvas></div>
+ </div>
+ <div class="grid2" style="margin-top:20px">
+ <div class="card">
+ <h3>Evening — Top 15 Recommendations</h3>
+ <table>
+ <thead><tr><th>#</th><th>Pair</th><th>Score</th><th>Drought</th><th>Freq</th></tr></thead>
+ <tbody id="tbEmEveRecs"></tbody>
+ </table>
+ </div>
+ <div class="card">
+ <h3>Midday — Top 15 Recommendations</h3>
+ <table>
+ <thead><tr><th>#</th><th>Pair</th><th>Score</th><th>Drought</th><th>Freq</th></tr></thead>
+ <tbody id="tbEmMidRecs"></tbody>
+ </table>
+ </div>
+ </div>
+ <div class="grid2" style="margin-top:20px">
+ <div class="card">
+ <h3>Evening — Hot &amp; Cold Digits</h3>
+ <table>
+ <thead><tr><th>Digit</th><th>Count</th><th>Ratio</th><th>Status</th></tr></thead>
+ <tbody id="tbEmEveHC"></tbody>
+ </table>
+ </div>
+ <div class="card">
+ <h3>Midday — Hot &amp; Cold Digits</h3>
+ <table>
+ <thead><tr><th>Digit</th><th>Count</th><th>Ratio</th><th>Status</th></tr></thead>
+ <tbody id="tbEmMidHC"></tbody>
+ </table>
+ </div>
+ </div>
+ </div>
+
+ <!-- ============ CROSS-REFERENCE ============ -->
+ <div class="section" id="sec-crossref">
+ <div class="card">
+ <h3>Cross-Reference Matrix <span class="sub">Overlap between mathematical properties</span></h3>
+ <div style="overflow-x:auto" id="crossMatrixWrap"></div>
+ </div>
+ <div class="card" style="margin-top:20px">
+ <h3>Multi-Property Pairs <span class="sub">Pairs that satisfy 2+ mathematical properties — high cross-reference value</span></h3>
+ <table>
+ <thead><tr><th>Pair</th><th>Tags</th><th># Tags</th><th>Frequency</th><th>Drought</th></tr></thead>
+ <tbody id="tbMultiProp"></tbody>
+ </table>
+ </div>
+ </div>
+
+ <!-- ============ ULTIMATE PICKS ============ -->
+ <div class="section" id="sec-ultimate">
+ <div class="card" style="margin-bottom:20px">
+ <h3>How Ultimate Picks Are Calculated</h3>
+ <div style="font-size:13px;color:var(--muted);line-height:1.8">
+ Each pair receives signals from <b>ALL</b> analysis modules, weighted and combined:<br>
+ • <b style="color:var(--accent)">22% Drought</b>&nbsp;•&nbsp; <b style="color:var(--blue)">18% Frequency</b>&nbsp;•&nbsp;
+ <b style="color:var(--cold)">8% Cold</b>&nbsp;•&nbsp; <b style="color:var(--yellow)">10% Markov</b>&nbsp;•&nbsp;
+ <b style="color:var(--purple)">13% Math Properties</b>&nbsp;•&nbsp; <b style="color:var(--green)">5% Cross-Ref</b>&nbsp;•&nbsp;
+ <b style="color:var(--orange)">10% Digit Alignment</b>&nbsp;•&nbsp; 5% Trend &nbsp;•&nbsp; 4% Fireball Affinity &nbsp;•&nbsp; 5% E/M Bonus<br><br>
+ Results are computed separately for <b>Overall</b>, <b>Evening</b>, and <b>Midday</b>. Cross-agreement shows pairs appearing in multiple lists.
+ </div>
+ </div>
+
+ <div class="card" style="margin-bottom:20px">
+ <h3>Cross-Agreement <span class="sub">Pairs appearing in multiple recommendation lists</span></h3>
+ <div id="crossAgreementGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px"></div>
+ </div>
+
+ <h3 style="margin-bottom:10px;font-size:16px">Overall Top 20</h3>
+ <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;margin-bottom:24px" id="ultOverallGrid"></div>
+
+ <div class="grid2" style="margin-bottom:24px">
+ <div>
+ <h3 style="margin-bottom:10px;font-size:16px">Evening Top 20</h3>
+ <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px" id="ultEveGrid"></div>
+ </div>
+ <div>
+ <h3 style="margin-bottom:10px;font-size:16px">Midday Top 20</h3>
+ <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px" id="ultMidGrid"></div>
+ </div>
+ </div>
+
+ <div class="grid3">
+ <div class="card">
+ <h3>Fireball Recs — Overall</h3>
+ <table>
+ <thead><tr><th>Rank</th><th>Digit</th><th>Score</th><th>Drought</th></tr></thead>
+ <tbody id="tbUltFbAll"></tbody>
+ </table>
+ </div>
+ <div class="card">
+ <h3>Fireball Recs — Evening</h3>
+ <table>
+ <thead><tr><th>Rank</th><th>Digit</th><th>Score</th><th>Drought</th></tr></thead>
+ <tbody id="tbUltFbEve"></tbody>
+ </table>
+ </div>
+ <div class="card">
+ <h3>Fireball Recs — Midday</h3>
+ <table>
+ <thead><tr><th>Rank</th><th>Digit</th><th>Score</th><th>Drought</th></tr></thead>
+ <tbody id="tbUltFbMid"></tbody>
+ </table>
+ </div>
+ </div>
+
+ <div class="card" style="margin-top:20px">
+ <h3>Signal Breakdown — Top 10 Overall <span class="sub">Radar view of contributing signals</span></h3>
+ <div class="chart-wrap" style="height:400px"><canvas id="chartUltSignals"></canvas></div>
+ </div>
+
+ <div class="disclaimer">
+ <b>IMPORTANT DISCLAIMER:</b> Lottery drawings are purely random, independent events.
+ No mathematical system can predict or improve your chances. These "ultimate picks" combine signals from
+ drought, frequency, Markov chains, mathematical properties, Fireball analysis, and Evening/Midday splits — but
+ none of these are predictive for truly random processes. For <b>educational and entertainment purposes only</b>.
+ </div>
+ </div>
+
+ <!-- ============ FINAL PICKS ============ -->
+ <div class="section" id="sec-finalpicks">
+
+ <div class="card" style="margin-bottom:24px;background:linear-gradient(135deg,#eaf0f7,#dce6f0);color:#1a2332;border-color:var(--accent);">
+ <h3 style="font-size:20px;text-align:center;margin-bottom:6px;">YOUR FINAL PICKS — What To Play Today</h3>
+ <div style="text-align:center;font-size:13px;color:var(--muted);">
+ Numbers distilled from <b>all</b> mathematical analyses — drought, frequency, Markov chains, Fibonacci, primes, cross-references & more.<br>
+ Pairs that appear as <span style="color:#dc3545">TRIPLE MATCH</span> agree across Overall, Evening <i>and</i> Midday models.
+ </div>
+ </div>
+
+ <!-- Triple matches callout -->
+ <div class="card" style="margin-bottom:24px;border-color:rgba(220,53,69,0.2);background:linear-gradient(135deg,rgba(220,53,69,0.04),rgba(220,53,69,0.02));">
+ <h3 style="color:#dc3545;font-size:17px;">Triple-Agreement Pairs <span class="sub">Appear in Overall + Evening + Midday top picks simultaneously</span></h3>
+ <div id="fpTripleGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:14px;margin-top:10px;"></div>
+ </div>
+
+ <!-- E / M side by side -->
+ <div class="grid2" style="margin-bottom:24px;">
+ <div class="card" style="border-color:rgba(0,51,102,0.2);">
+ <h3 style="font-size:17px;">Evening — Top 10 Pairs</h3>
+ <div id="fpEveGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:12px;margin-top:10px;"></div>
+ <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px;">
+ <h3 style="font-size:15px;">Evening Fireball Pick</h3>
+ <div id="fpFbEve" style="display:flex;gap:12px;margin-top:8px;flex-wrap:wrap;"></div>
+ </div>
+ </div>
+ <div class="card" style="border-color:rgba(200,150,12,0.2);">
+ <h3 style="font-size:17px;">Midday — Top 10 Pairs</h3>
+ <div id="fpMidGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:12px;margin-top:10px;"></div>
+ <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px;">
+ <h3 style="font-size:15px;">Midday Fireball Pick</h3>
+ <div id="fpFbMid" style="display:flex;gap:12px;margin-top:8px;flex-wrap:wrap;"></div>
+ </div>
+ </div>
+ </div>
+
+ <!-- Overall top 10 with detail -->
+ <div class="card" style="margin-bottom:24px;">
+ <h3 style="font-size:17px;">Overall Top 10 Pairs (All Draws Combined)</h3>
+ <div id="fpOverallGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:14px;margin-top:10px;"></div>
+ <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px;">
+ <h3 style="font-size:15px;">Overall Fireball Pick</h3>
+ <div id="fpFbAll" style="display:flex;gap:12px;margin-top:8px;flex-wrap:wrap;"></div>
+ </div>
+ </div>
+
+ <!-- Quick-play summary -->
+ <div class="card" style="border-color:rgba(0,166,81,0.2);background:linear-gradient(135deg,rgba(0,166,81,0.05),rgba(0,166,81,0.02));">
+ <h3 style="color:var(--green);font-size:17px;">Quick-Play Summary</h3>
+ <div id="fpQuickSummary" style="margin-top:10px;font-size:15px;line-height:2.2;"></div>
+ </div>
+
+ <div class="disclaimer" style="margin-top:20px;">
+ <b>DISCLAIMER:</b> Lottery drawings are purely random, independent events. No analysis, no matter how comprehensive,
+ can predict future outcomes. All recommendations are for <b>educational &amp; entertainment purposes only</b>.
+ Play responsibly.
+ </div>
+ </div>
+
+ <!-- ============ AI META-ANALYSIS ============ -->
+ <div class="section" id="sec-aimeta">
+
+ <div class="card" style="margin-bottom:24px;background:linear-gradient(135deg,#eaf0f7,#dce6f0);color:#1a2332;border-color:#0072ce;">
+ <h3 style="font-size:22px;text-align:center;margin-bottom:6px;">AI Meta-Analysis — Machine Learning Powered</h3>
+ <div style="text-align:center;font-size:13px;color:var(--muted);">
+ Random Forest &amp; Gradient Boosting models trained on 50+ features per pair, cross-validated against historical data.<br>
+ Combines ML predictions, statistical signals, anomaly detection, clustering &amp; sequence pattern analysis.
+ </div>
+ </div>
+
+ <!-- Model Performance KPIs -->
+ <div id="aiModelKpis" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:24px;"></div>
+
+ <!-- Cross-validation with existing analysis -->
+ <div class="card" id="aiCrossValid" style="margin-bottom:24px;border-color:rgba(0,114,206,0.2);"></div>
+
+ <!-- AI Top Picks (Overall / Evening / Midday) -->
+ <div class="card" style="margin-bottom:24px;">
+ <h3 style="font-size:17px;">AI Top Pair Recommendations — Overall</h3>
+ <div id="aiTopOverall" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;margin-top:12px;"></div>
+ </div>
+
+ <div class="grid2" style="margin-bottom:24px;">
+ <div class="card">
+ <h3 style="font-size:17px;">AI Evening Picks</h3>
+ <div id="aiTopEve" style="margin-top:12px;"></div>
+ </div>
+ <div class="card">
+ <h3 style="font-size:17px;">AI Midday Picks</h3>
+ <div id="aiTopMid" style="margin-top:12px;"></div>
+ </div>
+ </div>
+
+ <!-- AI Fireball -->
+ <div class="card" style="margin-bottom:24px;">
+ <h3 style="font-size:17px;">AI Fireball Recommendations</h3>
+ <div id="aiFireball" style="display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;"></div>
+ </div>
+
+ <!-- Feature Importance Charts -->
+ <div class="grid2" style="margin-bottom:24px;">
+ <div class="card"><h3>Random Forest — Top Features</h3><canvas id="aiRfFeatChart"></canvas></div>
+ <div class="card"><h3>Gradient Boosting — Top Features</h3><canvas id="aiGbFeatChart"></canvas></div>
+ </div>
+
+ <!-- Backtesting Results -->
+ <div class="card" id="aiBacktest" style="margin-bottom:24px;"></div>
+
+ <!-- Signal Performance -->
+ <div class="card" style="margin-bottom:24px;">
+ <h3 style="font-size:17px;">Signal Backtest Performance</h3>
+ <canvas id="aiSignalChart" style="margin-top:12px;"></canvas>
+ </div>
+
+ <!-- Clusters -->
+ <div class="card" id="aiClusters" style="margin-bottom:24px;"></div>
+
+ <!-- Anomalies -->
+ <div class="card" id="aiAnomalies" style="margin-bottom:24px;"></div>
+
+ <!-- Sequence Patterns -->
+ <div class="card" id="aiSequences" style="margin-bottom:24px;"></div>
+
+ <!-- AI Final Summary -->
+ <div class="card" id="aiSummary" style="margin-bottom:24px;border-color:rgba(0,114,206,0.3);background:linear-gradient(135deg,rgba(0,114,206,0.05),rgba(0,114,206,0.02));"></div>
+
+ <div class="disclaimer" style="margin-top:20px;">
+ <b>DISCLAIMER:</b> Machine learning models find patterns in historical data but <b>cannot predict future lottery outcomes</b>.
+ Lottery draws are independent random events. ML precision on this inherently random data is expected to be low.
+ All AI recommendations are for <b>educational &amp; entertainment purposes only</b>.
+ </div>
+ </div>
+
+ <!-- ============ HISTORICAL VALIDATION / BACKTEST ============ -->
+ <div class="section" id="sec-backtest">
+
+ <div class="card" style="margin-bottom:24px;background:linear-gradient(135deg,#eaf0f7,#dce6f0);color:#1a2332;border-color:var(--accent);">
+ <h3 style="font-size:20px;text-align:center;margin-bottom:6px;">Historical Prediction Validation</h3>
+ <div style="text-align:center;font-size:13px;color:var(--muted);">
+ Every analysis signal was tested against <b>actual past draws</b> using a sliding window.<br>
+ For each draw, ONLY prior data was used to generate predictions — <b>no future-leaking</b>.
+ </div>
+ </div>
+
+ <!-- KPI Row -->
+ <div id="btKpis" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:16px;margin-bottom:24px;"></div>
+
+ <!-- Signal Comparison Bar Chart -->
+ <div class="card" style="margin-bottom:24px;">
+ <h3>Signal Comparison — Hit Rate vs Random Baseline</h3>
+ <canvas id="btComparisonChart" height="110"></canvas>
+ </div>
+
+ <!-- Lift Chart + Multi-Agreement Chart -->
+ <div class="grid2" style="margin-bottom:24px;">
+ <div class="card"><h3>Lift Over Random (1.0x = no better than random)</h3><canvas id="btLiftChart"></canvas></div>
+ <div class="card"><h3>Multi-Signal Agreement — When N+ Signals Agreed</h3><canvas id="btAgreementChart"></canvas></div>
+ </div>
+
+ <!-- Per-Signal Detailed Table -->
+ <div class="card" style="margin-bottom:24px;">
+ <h3>Per-Signal Backtest Results</h3>
+ <div style="overflow-x:auto;">
+ <table id="btSignalTable" style="width:100%;border-collapse:collapse;font-size:13px;margin-top:12px;">
+ <thead></thead>
+ <tbody></tbody>
+ </table>
+ </div>
+ </div>
+
+ <!-- Rolling Performance Chart -->
+ <div class="card" style="margin-bottom:24px;">
+ <h3>Rolling Hit Rate Over Time (100-draw window)</h3>
+ <canvas id="btRollingChart" height="120"></canvas>
+ </div>
+
+ <!-- Notable Multi-Hit Draws -->
+ <div class="card" style="margin-bottom:24px;">
+ <h3>Notable Draws — 3+ Signals Agreed AND Hit</h3>
+ <div style="overflow-x:auto;">
+ <table id="btNotableTable" style="width:100%;border-collapse:collapse;font-size:13px;margin-top:12px;">
+ <thead></thead>
+ <tbody></tbody>
+ </table>
+ </div>
+ </div>
+
+ <!-- Top Hit Pairs -->
+ <div class="grid2" style="margin-bottom:24px;">
+ <div class="card">
+ <h3>Best Performing Signal — Top Hit Pairs</h3>
+ <div id="btBestSignalPairs"></div>
+ </div>
+ <div class="card">
+ <h3>Recent Prediction Log (Last 30 Draws)</h3>
+ <div id="btRecentLog" style="max-height:400px;overflow-y:auto;"></div>
+ </div>
+ </div>
+
+ <div class="disclaimer" style="margin-top:20px;">
+ <b>DISCLAIMER:</b> A lift of ~1.0x means the signal performs roughly at random.
+ Lottery numbers are drawn randomly — <b>no system can reliably predict outcomes</b>.
+ This analysis is for educational &amp; entertainment purposes only. Past patterns do not guarantee future results.
+ </div>
+ </div>
+
+ <!-- ============ SCRATCH-OFF 200X ============ -->
+ <div class="section" id="sec-scratchoff">
+
+ <div class="card" style="margin-bottom:24px;background:linear-gradient(135deg,#eaf0f7,#dce6f0);color:#1a2332;border-color:var(--accent);">
+ <h3 style="font-size:20px;text-align:center;margin-bottom:6px;">$20 Scratch-Off — 200X THE CASH</h3>
+ <div style="text-align:center;font-size:13px;color:var(--muted);">
+ Analysis based on <b>remaining prize data</b>. Total ticket count reverse-engineered from published odds.<br>
+ We estimate how many tickets are still in circulation and whether the <b>current expected value</b> is better or worse than at launch.
+ </div>
+ </div>
+
+ <!-- KPI Row -->
+ <div id="soKpis" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-bottom:24px;"></div>
+
+ <!-- Verdict -->
+ <div class="card" id="soVerdict" style="margin-bottom:24px;border-color:rgba(200,150,12,0.3);"></div>
+
+ <!-- EV Comparison Chart -->
+ <div class="grid2" style="margin-bottom:24px;">
+ <div class="card"><h3>Expected Value — Original vs Current</h3><canvas id="soEvChart"></canvas></div>
+ <div class="card"><h3>Prize Pool Breakdown</h3><canvas id="soPrizePoolChart"></canvas></div>
+ </div>
+
+ <!-- Prize Tier Table -->
+ <div class="card" style="margin-bottom:24px;">
+ <h3>Prize Tier Analysis — Remaining vs Claimed</h3>
+ <div style="overflow-x:auto;">
+ <table id="soTierTable" style="width:100%;border-collapse:collapse;font-size:13px;margin-top:12px;">
+ <thead></thead>
+ <tbody></tbody>
+ </table>
+ </div>
+ </div>
+
+ <!-- Odds Improvement Chart -->
+ <div class="grid2" style="margin-bottom:24px;">
+ <div class="card"><h3>Odds Improvement by Tier</h3><canvas id="soOddsChart"></canvas></div>
+ <div class="card"><h3>Remaining Value Distribution</h3><canvas id="soValueDistChart"></canvas></div>
+ </div>
+
+ <!-- Top Prizes Spotlight -->
+ <div class="card" id="soTopPrizes" style="margin-bottom:24px;border-color:rgba(0,166,81,0.2);background:linear-gradient(135deg,rgba(0,166,81,0.05),rgba(0,166,81,0.02));"></div>
+
+ <!-- Strategy Summary -->
+ <div class="card" id="soStrategy" style="margin-bottom:24px;"></div>
+
+ <div class="disclaimer" style="margin-top:20px;">
+ <b>DISCLAIMER:</b> Scratch-off analysis is based on publicly available remaining-prize data.
+ Actual odds depend on the distribution of remaining tickets in the supply chain.
+ This analysis is for <b>educational &amp; entertainment purposes only</b>. Play responsibly.
+ </div>
+ </div>
+
+</div>
+
+<script>
+// =========================================================================
+// LOAD DATA & RENDER
+// =========================================================================
+let DATA = null;
+
+fetch('analysis.json')
+ .then(r =>r.json())
+ .then(d =>{ DATA = d; render(); })
+ .catch(e =>document.body.innerHTML = '<p style="color:red;padding:40px">Error loading analysis.json: '+e+'</p>');
+
+// Tab switching
+document.getElementById('tabBar').addEventListener('click', e =>{
+ if (!e.target.classList.contains('tab')) return;
+ document.querySelectorAll('.tab').forEach(t =>t.classList.remove('active'));
+ document.querySelectorAll('.section').forEach(s =>s.classList.remove('active'));
+ e.target.classList.add('active');
+ document.getElementById('sec-' + e.target.dataset.tab).classList.add('active');
+});
+
+function render() {
+ renderMeta();
+ renderOverview();
+ renderDrought();
+ renderFrequency();
+ renderHotCold();
+ renderHeatmaps();
+ renderStats();
+ renderTrends();
+ renderRecommendations();
+ renderMathSequences();
+ renderAdvancedMath();
+ renderFireball();
+ renderEveningMidday();
+ renderCrossRef();
+ renderUltimate();
+ renderFinalPicks();
+ renderAiMeta();
+ renderHistoricalValidation();
+ renderScratchOff();
+}
+
+// =========================================================================
+// HELPERS
+// =========================================================================
+function badge(label) {
+ const cls = label === 'HOT' ? 'badge-hot' : label === 'COLD' ? 'badge-cold' : 'badge-neutral';
+ return `<span class="badge ${cls}">${label}</span>`;
+}
+function pctColor(v) { return v >0 ? 'var(--green)' : v < 0 ? 'var(--red)' : 'var(--text)'; }
+function scoreBar(val, max, color) {
+ const pct = Math.min(100, (val / max) * 100);
+ return `<div class="score-bar"><div class="score-val" style="color:${color}">${val}</div>
+ <div class="bar" style="flex:1"><div class="bar-fill" style="width:${pct}%;background:${color}"></div></div></div>`;
+}
+const COLORS10 = ['#dc3545','#00a651','#0072ce','#c8960c','#003366','#0072ce','#dc3545','#28a745','#4da3e8','#e8c84a'];
+
+// =========================================================================
+// META
+// =========================================================================
+function renderMeta() {
+ const m = DATA.meta;
+ const fb = m.last_draw.fireball !== 'N/A' ? m.last_draw.fireball : '—';
+ document.getElementById('metaInfo').innerHTML =
+ `<b>${m.total_draws.toLocaleString()}</b> drawings ( ${m.evening_draws.toLocaleString()} Evening • ${m.midday_draws.toLocaleString()} Midday) &nbsp;•&nbsp; ${m.date_range.start} → ${m.date_range.end} &nbsp;•&nbsp; Last: <b>${m.last_draw.full_number}</b> FB:<b>${fb}</b> (${m.last_draw.drawing === 'E' ? ' Eve' : ' Mid'} ${m.last_draw.date}) &nbsp;•&nbsp; Generated: ${m.generated}`;
+}
+
+// =========================================================================
+// OVERVIEW
+// =========================================================================
+function renderOverview() {
+ // KPIs
+ const dd = DATA.digit_drought;
+ const maxDrought = Math.max(...Object.values(dd).map(d =>d.any));
+ const maxDrDigit = Object.entries(dd).find(([k,v]) =>v.any === maxDrought);
+ const hc = DATA.hot_cold_100;
+ const hottest = Object.entries(hc).reduce((a,b) =>b[1].ratio >a[1].ratio ? b : a);
+ const coldest = Object.entries(hc).reduce((a,b) =>b[1].ratio < a[1].ratio ? b : a);
+ const topRec = DATA.recommendations_pairs[0];
+
+ document.getElementById('kpiRow').innerHTML = `
+ <div class="kpi"><div class="label">Total Draws</div><div class="value purple">${DATA.meta.total_draws.toLocaleString()}</div></div>
+ <div class="kpi"><div class="label">Most Overdue Digit</div><div class="value red">${maxDrDigit[0]} <span style="font-size:14px;color:var(--muted)">(${maxDrought} draws)</span></div></div>
+ <div class="kpi"><div class="label">Hottest Digit (100)</div><div class="value" style="color:var(--hot)">${hottest[0]} <span style="font-size:14px">(${hottest[1].ratio}x)</span></div></div>
+ <div class="kpi"><div class="label">Coldest Digit (100)</div><div class="value" style="color:var(--cold)">${coldest[0]} <span style="font-size:14px">(${coldest[1].ratio}x)</span></div></div>
+ <div class="kpi"><div class="label">Top Recommended Pair</div><div class="value" style="color:var(--accent)">${topRec.pair} <span style="font-size:14px">(${topRec.score})</span></div></div>
+ `;
+
+ // Drought overview chart
+ new Chart(document.getElementById('chartDroughtOverview'), {
+ type: 'bar',
+ data: {
+ labels: Object.keys(dd),
+ datasets: [{
+ label: 'Draws since last seen (any position)',
+ data: Object.values(dd).map(d =>d.any),
+ backgroundColor: Object.values(dd).map(d =>d.any >10 ? '#dc3545' : d.any >5 ? '#c8960c' : '#00a651'),
+ borderRadius: 4,
+ }]
+ },
+ options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+ scales:{ y:{grid:{color:'rgba(0,0,0,0.06)'},ticks:{color:'#5c6a7a'}}, x:{ticks:{color:'#5c6a7a'}} } }
+ });
+
+ // Frequency overview chart
+ const freq = DATA.digit_frequency;
+ new Chart(document.getElementById('chartFreqOverview'), {
+ type: 'bar',
+ data: {
+ labels: Object.keys(freq),
+ datasets: [
+ { label:'Position 1', data:Object.values(freq).map(f=>f.pos1_count), backgroundColor:'rgba(0,51,102,0.65)', borderRadius:4 },
+ { label:'Position 2', data:Object.values(freq).map(f=>f.pos2_count), backgroundColor:'rgba(0,114,206,0.35)', borderRadius:4 },
+ ]
+ },
+ options: { responsive:true, maintainAspectRatio:false,
+ plugins:{legend:{labels:{color:'#5c6a7a'}}},
+ scales:{ y:{grid:{color:'rgba(0,0,0,0.06)'},ticks:{color:'#5c6a7a'}}, x:{ticks:{color:'#5c6a7a'}} } }
+ });
+
+ // Top recs cards
+ const container = document.getElementById('topRecsOverview');
+ DATA.recommendations_pairs.slice(0, 10).forEach((r, i) =>{
+ container.innerHTML += `<div class="rec-card">
+ <div style="font-size:11px;color:var(--muted)">#${i+1}</div>
+ <div class="rec-num">${r.pair}</div>
+ <div class="rec-score">Score: ${r.score}</div>
+ <div class="rec-detail">Drought: <b>${r.drought_draws}</b> draws<br>Freq dev: <b>${r.freq_deviation_pct}%</b></div>
+ </div>`;
+ });
+}
+
+// =========================================================================
+// DROUGHT
+// =========================================================================
+function renderDrought() {
+ const dd = DATA.digit_drought;
+ const la = DATA.last_appearance_digits;
+ let html = '';
+ for (const d of Object.keys(dd)) {
+ const v = dd[d], a = la[d];
+ html += `<tr>
+ <td style="font-weight:700;font-size:16px">${d}</td>
+ <td>${scoreBar(v.pos1, 40, '#dc3545')}</td>
+ <td>${scoreBar(v.pos2, 40, '#0072ce')}</td>
+ <td>${scoreBar(v.any, 40, '#003366')}</td>
+ <td style="font-size:12px;color:var(--muted)">${a.pos1}</td>
+ <td style="font-size:12px;color:var(--muted)">${a.pos2}</td>
+ </tr>`;
+ }
+ document.getElementById('tbDroughtDigits').innerHTML = html;
+
+ // Drought detail chart
+ new Chart(document.getElementById('chartDroughtDetail'), {
+ type: 'bar',
+ data: {
+ labels: Object.keys(dd),
+ datasets: [
+ { label:'Position 1', data:Object.values(dd).map(d=>d.pos1), backgroundColor:'#dc3545', borderRadius:4 },
+ { label:'Position 2', data:Object.values(dd).map(d=>d.pos2), backgroundColor:'#0072ce', borderRadius:4 },
+ ]
+ },
+ options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{color:'#5c6a7a'}}},
+ scales:{ y:{grid:{color:'rgba(0,0,0,0.06)'},ticks:{color:'#5c6a7a'}}, x:{ticks:{color:'#5c6a7a'}} } }
+ });
+
+ // Pair drought table
+ const pdTop = DATA.pair_drought_top30;
+ const maxPd = pdTop[0]?.draws_ago || 1;
+ let phtml = '';
+ pdTop.forEach((p, i) =>{
+ phtml += `<tr>
+ <td>${i+1}</td>
+ <td style="font-weight:700;font-size:15px;color:var(--accent)">${p.pair}</td>
+ <td>${p.draws_ago}</td>
+ <td style="color:var(--muted)">${p.last_date}</td>
+ <td>${scoreBar(p.draws_ago, maxPd, '#dc3545')}</td>
+ </tr>`;
+ });
+ document.getElementById('tbDroughtPairs').innerHTML = phtml;
+}
+
+// =========================================================================
+// FREQUENCY
+// =========================================================================
+function renderFrequency() {
+ const freq = DATA.digit_frequency;
+ let html = '';
+ for (const d of Object.keys(freq)) {
+ const f = freq[d];
+ html += `<tr>
+ <td style="font-weight:700">${d}</td>
+ <td>${f.pos1_count}</td><td>${f.pos2_count}</td><td><b>${f.total}</b></td>
+ <td style="color:var(--muted)">${f.expected_total}</td>
+ <td style="color:${pctColor(f.deviation_pct)};font-weight:600">${f.deviation_pct >0 ? '+' : ''}${f.deviation_pct}%</td>
+ </tr>`;
+ }
+ document.getElementById('tbFreqDigits').innerHTML = html;
+
+ // Deviation chart
+ new Chart(document.getElementById('chartFreqDev'), {
+ type: 'bar',
+ data: {
+ labels: Object.keys(freq),
+ datasets: [{
+ label: 'Deviation from expected (%)',
+ data: Object.values(freq).map(f =>f.deviation_pct),
+ backgroundColor: Object.values(freq).map(f =>f.deviation_pct >= 0 ? 'rgba(0,166,81,0.65)' : 'rgba(220,53,69,0.6)'),
+ borderRadius: 4,
+ }]
+ },
+ options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+ scales:{ y:{grid:{color:'rgba(0,0,0,0.06)'},ticks:{color:'#5c6a7a'}}, x:{ticks:{color:'#5c6a7a'}} } }
+ });
+
+ // Pair frequency tables (top/bottom 15)
+ const pf = DATA.pair_frequency;
+ const sorted = Object.entries(pf).sort((a,b) =>b[1].count - a[1].count);
+ let hHigh = '', hLow = '';
+ sorted.slice(0,15).forEach(([k,v]) =>{
+ hHigh += `<tr><td style="font-weight:700;color:var(--green)">${k}</td><td>${v.count}</td><td style="color:var(--muted)">${v.expected}</td>
+ <td style="color:var(--green)">+${v.deviation_pct}%</td></tr>`;
+ });
+ sorted.slice(-15).reverse().forEach(([k,v]) =>{
+ hLow += `<tr><td style="font-weight:700;color:var(--red)">${k}</td><td>${v.count}</td><td style="color:var(--muted)">${v.expected}</td>
+ <td style="color:var(--red)">${v.deviation_pct}%</td></tr>`;
+ });
+ document.getElementById('tbFreqPairsHigh').innerHTML = hHigh;
+ document.getElementById('tbFreqPairsLow').innerHTML = hLow;
+}
+
+// =========================================================================
+// HOT & COLD
+// =========================================================================
+function renderHotCold() {
+ for (const [key, elId] of [['hot_cold_100','tbHotCold100'],['hot_cold_50','tbHotCold50']]) {
+ const hc = DATA[key];
+ let html = '';
+ for (const d of Object.keys(hc)) {
+ const v = hc[d];
+ html += `<tr>
+ <td style="font-weight:700">${d}</td>
+ <td>${v.recent_total}</td>
+ <td style="color:var(--muted)">${v.expected}</td>
+ <td style="font-weight:600">${v.ratio}x</td>
+ <td>${badge(v.label)}</td>
+ </tr>`;
+ }
+ document.getElementById(elId).innerHTML = html;
+ }
+
+ // Chart
+ const hc100 = DATA.hot_cold_100;
+ const hc50 = DATA.hot_cold_50;
+ new Chart(document.getElementById('chartHotCold'), {
+ type: 'bar',
+ data: {
+ labels: Object.keys(hc100),
+ datasets: [
+ { label:'Last 100 draws', data:Object.values(hc100).map(v=>v.ratio), backgroundColor:'rgba(0,51,102,0.65)', borderRadius:4 },
+ { label:'Last 50 draws', data:Object.values(hc50).map(v=>v.ratio), backgroundColor:'rgba(200,150,12,0.7)', borderRadius:4 },
+ ]
+ },
+ options: {
+ responsive:true, maintainAspectRatio:false,
+ plugins:{ legend:{labels:{color:'#5c6a7a'}},
+ annotation:{ annotations:{ line1:{ type:'line', yMin:1, yMax:1, borderColor:'rgba(0,51,102,0.2)', borderDash:[5,5] } } } },
+ scales:{ y:{grid:{color:'rgba(0,0,0,0.06)'},ticks:{color:'#5c6a7a'},title:{display:true,text:'Ratio vs Expected',color:'#5c6a7a'}}, x:{ticks:{color:'#5c6a7a'}} }
+ }
+ });
+}
+
+// =========================================================================
+// HEATMAPS
+// =========================================================================
+function renderHeatmaps() {
+ // Drought heatmap
+ const pf = DATA.pair_frequency;
+ const pd = {};
+ // Build pair drought from pair_drought_top30 + pair_frequency
+ DATA.pair_drought_top30.forEach(p =>pd[p.pair] = p.draws_ago);
+
+ // We need all pairs — reconstruct from analysis or compute from frequency
+ // For simplicity, use frequency for the frequency heatmap and pair_drought_top30 gives us the longest ones
+ // Let's build drought grid from the full pair_frequency by using an approximation
+
+ const droughtGrid = document.getElementById('heatmapGrid');
+ const freqGrid = document.getElementById('heatmapFreqGrid');
+
+ // We have pair_frequency for all 100 pairs
+ const allPairFreq = DATA.pair_frequency;
+ const maxFreq = Math.max(...Object.values(allPairFreq).map(v =>v.count));
+ const minFreq = Math.min(...Object.values(allPairFreq).map(v =>v.count));
+
+ // For drought heatmap, we'd ideally need all 100 drought values
+ // We have top 30 in pair_drought_top30. For the rest we can estimate from frequency
+ // Let's use deviation as proxy for drought coloring
+ const allDevs = Object.entries(allPairFreq).map(([k,v]) =>[k, v.deviation_pct]);
+ const minDev = Math.min(...allDevs.map(d=>d[1]));
+ const maxDev = Math.max(...allDevs.map(d=>d[1]));
+
+ // Build known droughts
+ const knownDroughts = {};
+ DATA.pair_drought_top30.forEach(p =>knownDroughts[p.pair] = p.draws_ago);
+
+ for (let r = 0; r < 10; r++) {
+ // Row label
+ droughtGrid.innerHTML += `<div style="display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted);font-weight:700">${r}</div>`;
+ freqGrid.innerHTML += `<div style="display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted);font-weight:700">${r}</div>`;
+ for (let c = 0; c < 10; c++) {
+ const key = `${r}${c}`;
+ const fv = allPairFreq[key];
+
+ // Drought heatmap: use deviation (more negative = more overdue = redder)
+ const devNorm = (fv.deviation_pct - minDev) / (maxDev - minDev || 1);
+ const drH = Math.round(120 * devNorm); // 0=red, 120=green
+ const drColor = `hsl(${drH}, 70%, 35%)`;
+
+ const droughtVal = knownDroughts[key] || '—';
+ droughtGrid.innerHTML += `<div class="heatmap-cell" style="background:${drColor};color:#fff">
+ ${key}<span class="tooltip">${key}: Dev ${fv.deviation_pct}%${droughtVal !== '—' ? ', Drought: '+droughtVal+' draws' : ''}</span></div>`;
+
+ // Frequency heatmap
+ const fNorm = (fv.count - minFreq) / (maxFreq - minFreq || 1);
+ const fColor = `rgba(0,51,102,${0.15 + fNorm * 0.85})`;
+ freqGrid.innerHTML += `<div class="heatmap-cell" style="background:${fColor};color:#fff">
+ ${key}<span class="tooltip">${key}: ${fv.count} times (exp: ${fv.expected})</span></div>`;
+ }
+ }
+
+ // Add column headers
+ const hdr = document.getElementById('heatColHeaders');
+ for (let c = 0; c < 10; c++) {
+ hdr.insertAdjacentHTML('afterend', ''); // headers already part of grid
+ }
+}
+
+// =========================================================================
+// STATISTICAL TESTS (enhanced with Benford, Entropy, Runs, Deltas)
+// =========================================================================
+function renderStats() {
+ const cd = DATA.chi_square_digits;
+ const cp = DATA.chi_square_pairs;
+
+ const rows = [
+ ['Position 1 Digits', cd.pos1, 9],
+ ['Position 2 Digits', cd.pos2, 9],
+ ['Combined Digits', cd.combined, 9],
+ ['All 100 Pairs', cp, 99],
+ ];
+
+ let html = '';
+ rows.forEach(([name, v, dof]) =>{
+ const res = v.uniform
+ ? '<span style="color:var(--green)">Consistent with uniform</span>'
+ : '<span style="color:var(--red)">Significant deviation</span>';
+ html += `<tr><td>${name}</td><td>${v.chi2}</td><td>${v.p_value}</td><td>${dof}</td><td>${res}</td></tr>`;
+ });
+ document.getElementById('tbChiSquare').innerHTML = html;
+
+ // Benford's Law chart
+ if (DATA.benfords) {
+ const bf = DATA.benfords;
+ const digits = Object.keys(bf.digits).filter(d =>d !== '0');
+ new Chart(document.getElementById('chartBenford'), {
+ type: 'bar',
+ data: {
+ labels: digits,
+ datasets: [
+ { label:'Actual %', data:digits.map(d=>bf.digits[d].actual_pct), backgroundColor:'rgba(0,51,102,0.65)', borderRadius:4 },
+ { label:'Benford %', data:digits.map(d=>bf.digits[d].benford_pct), type:'line', borderColor:'#c8960c', borderWidth:2, pointRadius:4, fill:false },
+ { label:'Uniform 10%', data:digits.map(()=>10), type:'line', borderColor:'#00a651', borderDash:[5,5], pointRadius:0, fill:false },
+ ]
+ },
+ options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{color:'#5c6a7a'}}},
+ scales:{ y:{grid:{color:'rgba(0,0,0,0.06)'},ticks:{color:'#5c6a7a'}}, x:{ticks:{color:'#5c6a7a'}} } }
+ });
+ const bfChi = bf.chi_square_vs_benford;
+ document.getElementById('benfordExplanation').innerHTML =
+ `${bf.explanation}<br><br><b>χ² vs Benford:</b>${bfChi.chi2} (p=${bfChi.p_value}) → ${bfChi.follows_benford
+ ? '<span style="color:var(--green)">Follows Benford</span>'
+ : '<span style="color:var(--red)">Does NOT follow Benford (expected — lottery is uniform)</span>'}`;
+ }
+
+ // Runs test
+ if (DATA.runs_test) {
+ let rhtml = '';
+ const labels = { above_below_median:'Above/Below Median', odd_even:'Odd/Even', high_low:'High(≥50)/Low(<50)' };
+ for (const [key, v] of Object.entries(DATA.runs_test)) {
+ const res = v.is_random ? '<span style="color:var(--green)">Random</span>' : '<span style="color:var(--red)">Not random</span>';
+ rhtml += `<tr><td>${labels[key]||key}</td><td>${v.runs}</td><td>${v.expected_runs}</td><td>${v.z_score}</td><td>${v.p_value}</td><td>${res}</td></tr>`;
+ }
+ document.getElementById('tbRunsTest').innerHTML = rhtml;
+ }
+
+ // Shannon Entropy
+ if (DATA.entropy) {
+ const e = DATA.entropy;
+ document.getElementById('entropyVal').textContent = e.pair_entropy.toFixed(4);
+ document.getElementById('entropyMax').textContent = e.max_pair_entropy.toFixed(4);
+ document.getElementById('entropyEff').textContent = e.pair_efficiency_pct + '%';
+ document.getElementById('entropyInterpretation').innerHTML = e.interpretation;
+
+ if (e.sliding_entropy && e.sliding_entropy.length) {
+ new Chart(document.getElementById('chartEntropy'), {
+ type: 'line',
+ data: {
+ labels: e.sliding_entropy.map(s=>s.date),
+ datasets: [{
+ label:'Entropy (window=200)',
+ data: e.sliding_entropy.map(s=>s.entropy),
+ borderColor:'#003366', backgroundColor:'rgba(0,51,102,0.1)', fill:true, pointRadius:0, tension:0.3,
+ },{
+ label:'Max entropy',
+ data: e.sliding_entropy.map(()=>e.max_pair_entropy),
+ borderColor:'#00a651', borderDash:[5,5], pointRadius:0, fill:false,
+ }]
+ },
+ options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{color:'#5c6a7a'}}},
+ scales:{ y:{grid:{color:'rgba(0,0,0,0.06)'},ticks:{color:'#5c6a7a'}}, x:{grid:{display:false},ticks:{color:'#5c6a7a',maxTicksLimit:12}} } }
+ });
+ }
+ }
+
+ // Deltas
+ if (DATA.deltas) {
+ const dl = DATA.deltas;
+ document.getElementById('deltaRepeats').textContent = `${dl.repeats} (${dl.repeat_pct}%)`;
+ document.getElementById('deltaAvg').textContent = dl.avg_delta.toFixed(1);
+ const top20 = dl.delta_distribution_top20;
+ new Chart(document.getElementById('chartDeltas'), {
+ type: 'bar',
+ data: {
+ labels: top20.map(d=>'Δ'+d[0]),
+ datasets: [{ label:'Count', data:top20.map(d=>d[1]),
+ backgroundColor:'rgba(0,114,206,0.6)', borderRadius:4 }]
+ },
+ options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+ scales:{ y:{grid:{color:'rgba(0,0,0,0.06)'},ticks:{color:'#5c6a7a'}}, x:{ticks:{color:'#5c6a7a',font:{size:10}}} } }
+ });
+ }
+
+ // Observed vs expected charts
+ const freq = DATA.digit_frequency;
+ for (const [pos, canvasId] of [['pos1','chartChiPos1'],['pos2','chartChiPos2']]) {
+ const key = pos + '_count';
+ new Chart(document.getElementById(canvasId), {
+ type: 'bar',
+ data: {
+ labels: Object.keys(freq),
+ datasets: [
+ { label:'Observed', data:Object.values(freq).map(f=>f[key]), backgroundColor:'rgba(0,51,102,0.65)', borderRadius:4 },
+ { label:'Expected', data:Object.values(freq).map(f=>f.expected_per_pos), type:'line', borderColor:'#c8960c', borderDash:[5,5], pointRadius:0, fill:false },
+ ]
+ },
+ options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{color:'#5c6a7a'}}},
+ scales:{ y:{grid:{color:'rgba(0,0,0,0.06)'},ticks:{color:'#5c6a7a'}}, x:{ticks:{color:'#5c6a7a'}} } }
+ });
+ }
+}
+
+// =========================================================================
+// TRENDS
+// =========================================================================
+function renderTrends() {
+ const trend = DATA.digit_trend;
+ if (!trend || !trend.length) return;
+
+ const labels = trend.map(t =>t.date);
+ const datasets = [];
+ for (let d = 0; d < 10; d++) {
+ datasets.push({
+ label: `Digit ${d}`,
+ data: trend.map(t =>t.shares[String(d)] * 100),
+ borderColor: COLORS10[d],
+ backgroundColor: 'transparent',
+ borderWidth: 1.5,
+ pointRadius: 0,
+ tension: 0.3,
+ });
+ }
+
+ new Chart(document.getElementById('chartTrend'), {
+ type: 'line',
+ data: { labels, datasets },
+ options: {
+ responsive:true, maintainAspectRatio:false,
+ plugins:{ legend:{ labels:{ color:'#5c6a7a', usePointStyle:true, pointStyle:'circle' } } },
+ scales:{
+ y:{ grid:{color:'rgba(0,0,0,0.06)'}, ticks:{color:'#5c6a7a', callback:v=>v+'%'},
+ title:{display:true,text:'Share %',color:'#5c6a7a'} },
+ x:{ grid:{display:false}, ticks:{color:'#5c6a7a', maxTicksLimit:15} }
+ }
+ }
+ });
+}
+
+// =========================================================================
+// RECOMMENDATIONS
+// =========================================================================
+function renderRecommendations() {
+ const recs = DATA.recommendations_pairs;
+ const container = document.getElementById('recPairsGrid');
+ recs.forEach((r, i) =>{
+ const hue = 260 - (i / recs.length) * 60;
+ container.innerHTML += `<div class="rec-card" style="border-color:hsl(${hue},50%,40%)">
+ <div style="font-size:11px;color:var(--muted)">#${i+1}</div>
+ <div class="rec-num">${r.pair}</div>
+ <div class="rec-score">Score: <b>${r.score}</b></div>
+ <div class="rec-detail">
+ Drought: <b>${r.drought_draws}</b> draws<br>
+ Appeared: <b>${r.frequency_count}</b>× (dev: ${r.freq_deviation_pct}%)<br>
+ Cold: <b>${r.cold_score}</b>&nbsp; Trend: <b>${r.trend_score}</b>
+ </div>
+ </div>`;
+ });
+
+ // Digit recommendation tables
+ for (const [pos, elId] of [['pos1','tbRecDigits1'],['pos2','tbRecDigits2']]) {
+ const dr = DATA.recommendations_digits[pos];
+ let html = '';
+ dr.forEach((r, i) =>{
+ html += `<tr>
+ <td>${i+1}</td>
+ <td style="font-weight:700;font-size:16px;color:var(--accent)">${r.digit}</td>
+ <td style="font-weight:700">${r.score}</td>
+ <td>${r.drought_draws} draws</td>
+ <td>${r.total_frequency}</td>
+ <td>${badge(r.hot_cold)}</td>
+ </tr>`;
+ });
+ document.getElementById(elId).innerHTML = html;
+ }
+
+ // Breakdown stacked bar chart
+ const top10 = recs.slice(0, 10);
+ new Chart(document.getElementById('chartRecBreakdown'), {
+ type: 'bar',
+ data: {
+ labels: top10.map(r =>r.pair),
+ datasets: [
+ { label:'Drought (40%)', data:top10.map(r =>r.drought_draws / Math.max(...recs.map(x=>x.drought_draws)) * 0.4),
+ backgroundColor:'rgba(0,51,102,0.8)', borderRadius:4 },
+ { label:'Freq Dev (30%)', data:top10.map(r =>Math.max(0, -r.freq_deviation_pct/100) * 0.3),
+ backgroundColor:'rgba(9,132,227,0.7)', borderRadius:4 },
+ { label:'Cold (15%)', data:top10.map(r =>r.cold_score * 0.15),
+ backgroundColor:'rgba(78,205,196,0.7)', borderRadius:4 },
+ { label:'Trend (15%)', data:top10.map(r =>r.trend_score * 0.15),
+ backgroundColor:'rgba(200,150,12,0.7)', borderRadius:4 },
+ ]
+ },
+ options: {
+ responsive:true, maintainAspectRatio:false,
+ plugins:{ legend:{labels:{color:'#5c6a7a'}} },
+ scales:{
+ x:{ stacked:true, ticks:{color:'#5c6a7a'} },
+ y:{ stacked:true, grid:{color:'rgba(0,0,0,0.06)'}, ticks:{color:'#5c6a7a'}, title:{display:true,text:'Composite Score',color:'#5c6a7a'} }
+ }
+ }
+ });
+}
+
+// =========================================================================
+// MATH SEQUENCES TAB
+// =========================================================================
+function renderMathSequences() {
+ const fib = DATA.fibonacci;
+ const prm = DATA.primes;
+ const gr = DATA.golden_ratio;
+ const geo = DATA.geometric;
+
+ // --- KPIs ---
+ document.getElementById('mathKpis').innerHTML = `
+ <div class="kpi"><div class="label">Fibonacci Pairs Drawn</div><div class="value" style="color:#c8960c">${fib.pair_is_fibonacci.count} <span style="font-size:13px;color:var(--muted)">(${fib.pair_is_fibonacci.pct}%)</span></div></div>
+ <div class="kpi"><div class="label">Prime Pairs Drawn</div><div class="value" style="color:#003366">${prm.pair_is_prime.count} <span style="font-size:13px;color:var(--muted)">(${prm.pair_is_prime.pct}%)</span></div></div>
+ <div class="kpi"><div class="label">Golden Ratio Pairs</div><div class="value" style="color:#dc3545">${gr.golden_pair_count}</div></div>
+ <div class="kpi"><div class="label">Fib Drought</div><div class="value" style="color:#c8960c">${fib.fib_drought_draws} draws</div></div>
+ <div class="kpi"><div class="label">Prime Drought</div><div class="value" style="color:#003366">${prm.prime_drought_draws} draws</div></div>
+ `;
+
+ // --- Fibonacci summary table ---
+ const fibData = fib.pair_is_fibonacci;
+ const fibDsum = fib.digit_sum_is_fibonacci;
+ const fibBoth = fib.both_digits_fibonacci;
+ let fibHtml = '';
+ const fibRows = [
+ ['Pair is Fibonacci number', `${fibData.count} (${fibData.pct}%)`, `${fibData.expected_count} (${fibData.expected_pct}%)`, fibData.count >= fibData.expected_count ? ' On track' : '⬇ Below'],
+ ['Digit sum is Fibonacci', `${fibDsum.count} (${fibDsum.pct}%)`, `${fibDsum.expected_count}`, fibDsum.count >= fibDsum.expected_count ? ' On track' : '⬇ Below'],
+ ['Both digits are Fib (0,1,2,3,5,8)', `${fibBoth.count} (${fibBoth.pct}%)`, `${fibBoth.expected_count} (${fibBoth.expected_pct}%)`, fibBoth.count >= fibBoth.expected_count ? ' On track' : '⬇ Below'],
+ ['Draws since last Fib pair', fib.fib_drought_draws, '—', fib.fib_drought_draws >10 ? ' Overdue' : ' Recent'],
+ ];
+ fibRows.forEach(r =>fibHtml += `<tr><td>${r[0]}</td><td style="font-weight:700">${r[1]}</td><td style="color:var(--muted)">${r[2]}</td><td>${r[3]}</td></tr>`);
+ document.getElementById('tbFibSummary').innerHTML = fibHtml;
+
+ // Fibonacci breakdown chart
+ if (fib.fib_breakdown) {
+ const fbk = fib.fib_breakdown;
+ const fibKeys = Object.keys(fbk);
+ new Chart(document.getElementById('chartFibBreakdown'), {
+ type: 'bar',
+ data: {
+ labels: fibKeys,
+ datasets: [
+ { label:'Observed', data:fibKeys.map(k=>fbk[k].count), backgroundColor:'rgba(200,150,12,0.7)', borderRadius:4 },
+ { label:'Expected', data:fibKeys.map(k=>fbk[k].expected), type:'line', borderColor:'#dc3545', borderDash:[4,4], pointRadius:3, fill:false },
+ ]
+ },
+ options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{color:'#5c6a7a'}}},
+ scales:{ y:{grid:{color:'rgba(0,0,0,0.06)'},ticks:{color:'#5c6a7a'}}, x:{ticks:{color:'#5c6a7a'}} } }
+ });
+ }
+
+ // --- Prime summary table ---
+ const prmData = prm.pair_is_prime;
+ const prmBoth = prm.both_digits_prime;
+ const prmDsum = prm.digit_sum_is_prime;
+ let prmHtml = '';
+ const prmRows = [
+ ['Pair is prime (25 primes)', `${prmData.count} (${prmData.pct}%)`, `${prmData.expected_count} (${prmData.expected_pct}%)`, prmData.count >= prmData.expected_count ? ' On track' : '⬇ Below'],
+ ['Both digits prime (2,3,5,7)', `${prmBoth.count} (${prmBoth.pct}%)`, `${prmBoth.expected_pct}%`, ''],
+ ['Digit sum is prime', `${prmDsum.count} (${prmDsum.pct}%)`, '—', ''],
+ ['Draws since last prime pair', prm.prime_drought_draws, '—', prm.prime_drought_draws >5 ? ' Overdue' : ' Recent'],
+ ];
+ prmRows.forEach(r =>prmHtml += `<tr><td>${r[0]}</td><td style="font-weight:700">${r[1]}</td><td style="color:var(--muted)">${r[2]}</td><td>${r[3]}</td></tr>`);
+ document.getElementById('tbPrimeSummary').innerHTML = prmHtml;
+
+ // Prime top/bottom chart
+ if (prm.top_primes && prm.bottom_primes) {
+ const combined = [...prm.top_primes.slice(0,8), ...prm.bottom_primes.slice(-8)];
+ const uniqueMap = new Map(combined.map(p =>[p[0], p[1]]));
+ const sorted = [...uniqueMap.entries()].sort((a,b)=>b[1]-a[1]);
+ new Chart(document.getElementById('chartPrimeTopBottom'), {
+ type: 'bar',
+ data: {
+ labels: sorted.map(p=>p[0]),
+ datasets: [{ label:'Count', data:sorted.map(p=>p[1]),
+ backgroundColor: sorted.map((_,i) =>i < 8 ? 'rgba(0,51,102,0.65)' : 'rgba(220,53,69,0.6)'), borderRadius:4 }]
+ },
+ options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+ scales:{ y:{grid:{color:'rgba(0,0,0,0.06)'},ticks:{color:'#5c6a7a'}}, x:{ticks:{color:'#5c6a7a',font:{size:9}}} } }
+ });
+ }
+
+ // --- Fibonacci gap repeats table ---
+ if (fib.fibonacci_gap_repeats) {
+ let gHtml = '';
+ for (const [gap, v] of Object.entries(fib.fibonacci_gap_repeats)) {
+ const ratioColor = v.ratio >1.2 ? 'var(--green)' : v.ratio < 0.8 ? 'var(--red)' : 'var(--text)';
+ gHtml += `<tr><td style="font-weight:700">${gap}</td><td>${v.matches}</td><td style="color:var(--muted)">${v.compared}</td>
+ <td>${v.match_pct}%</td><td style="color:var(--muted)">${v.expected_pct}%</td>
+ <td style="color:${ratioColor};font-weight:700">${v.ratio}x</td></tr>`;
+ }
+ document.getElementById('tbFibGaps').innerHTML = gHtml;
+ }
+
+ // --- Golden Ratio pairs table ---
+ if (gr.golden_ratio_pairs) {
+ let gHtml = '';
+ gr.golden_ratio_pairs.forEach(p =>{
+ const typeColor = p.type === 'φ' ? '#c8960c' : '#0072ce';
+ gHtml += `<tr><td style="font-weight:700;font-size:16px;color:var(--accent)">${p.pair}</td>
+ <td>${p.ratio}</td><td>${p.dist_to_phi}</td>
+ <td><span style="color:${typeColor};font-weight:700">${p.type}</span></td></tr>`;
+ });
+ document.getElementById('tbGoldenPairs').innerHTML = gHtml;
+ document.getElementById('goldenStats').innerHTML =
+ `φ = ${gr.phi} &nbsp;|&nbsp; 1/φ = ${gr.inv_phi}<br>
+ Golden pairs drawn: <b>${gr.golden_pair_count}</b> (expected: ${gr.golden_pair_expected})<br>
+ φ-power numbers: ${gr.phi_power_numbers.join(', ')}<br>
+ Golden angle sequence: ${gr.golden_angle_sequence.join(' → ')}`;
+ }
+
+ // --- Triangular ---
+ if (geo.triangular) {
+ const tri = geo.triangular;
+ let tHtml = '';
+ for (const [k,v] of Object.entries(tri.breakdown)) {
+ tHtml += `<tr><td style="font-weight:700;color:#00a651">${k}</td><td>${v}</td></tr>`;
+ }
+ document.getElementById('tbTriangular').innerHTML = tHtml;
+ document.getElementById('triangularStats').innerHTML =
+ `Total: <b>${tri.observed_count}</b> (${tri.observed_pct}%) — Expected: ${tri.expected_count} — Ratio: ${tri.ratio}x — Drought: <b>${tri.drought_draws}</b> draws`;
+ }
+
+ // --- Perfect Squares ---
+ if (geo.perfect_square) {
+ const sq = geo.perfect_square;
+ let sHtml = '';
+ for (const [k,v] of Object.entries(sq.breakdown)) {
+ sHtml += `<tr><td style="font-weight:700;color:#0072ce">${k}</td><td>${v}</td></tr>`;
+ }
+ document.getElementById('tbSquares').innerHTML = sHtml;
+ document.getElementById('squareStats').innerHTML =
+ `Total: <b>${sq.observed_count}</b> (${sq.observed_pct}%) — Expected: ${sq.expected_count} — Ratio: ${sq.ratio}x — Drought: <b>${sq.drought_draws}</b> draws`;
+ }
+
+ // --- Doubles ---
+ if (geo.doubles) {
+ const db = geo.doubles;
+ document.getElementById('doublesStats').innerHTML =
+ `<span style="color:var(--accent);font-weight:700">${db.observed_count}</span> doubles drawn (${db.observed_pct}%)
+ — Expected: ${db.expected_count} (${db.expected_pct}%) — Ratio: <b>${db.ratio}x</b>`;
+ // Chart for doubles uses pair_frequency for 00,11,22,...,99
+ const dblKeys = db.numbers;
+ const pf = DATA.pair_frequency;
+ new Chart(document.getElementById('chartDoubles'), {
+ type: 'bar',
+ data: {
+ labels: dblKeys,
+ datasets: [{
+ label:'Count', data: dblKeys.map(k=>pf[k]?.count || 0),
+ backgroundColor:'rgba(0,114,206,0.7)', borderRadius:4,
+ }]
+ },
+ options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+ scales:{ y:{grid:{color:'rgba(0,0,0,0.06)'},ticks:{color:'#5c6a7a'}}, x:{ticks:{color:'#5c6a7a'}} } }
+ });
+ }
+}
+
+// =========================================================================
+// ADVANCED MATH TAB
+// =========================================================================
+function renderAdvancedMath() {
+ // --- Pi ---
+ if (DATA.pi) {
+ const pi = DATA.pi;
+ document.getElementById('piStats').innerHTML =
+ `Consecutive matches from most recent draw: <b style="color:var(--accent)">${pi.consecutive_match_from_recent}</b><br>
+ Total matches in last 100 draws vs π pairs: <b>${pi.matches_in_100}</b> (expected by chance: ${pi.expected_matches_in_100})<br>
+ First 20 π pairs: <code style="color:var(--yellow)">${pi.pi_first_20_pairs.join(' ')}</code>`;
+ let piHtml = '';
+ pi.pi_first_20_pairs.forEach((pair, i) =>{
+ piHtml += `<tr><td>${i+1}</td><td style="font-weight:700;color:var(--yellow)">${pair}</td>
+ <td style="font-size:11px;color:var(--muted)">—</td></tr>`;
+ });
+ document.getElementById('tbPiPairs').innerHTML = piHtml;
+ }
+
+ // --- Digit Sum Distribution ---
+ if (DATA.digit_sum) {
+ const ds = DATA.digit_sum;
+ const dist = ds.distribution;
+ const sums = Object.keys(dist).map(Number);
+
+ new Chart(document.getElementById('chartDigitSum'), {
+ type: 'bar',
+ data: {
+ labels: sums,
+ datasets: [
+ { label:'Observed', data:sums.map(s=>dist[s].count), backgroundColor:'rgba(0,51,102,0.6)', borderRadius:4 },
+ { label:'Expected', data:sums.map(s=>dist[s].expected), type:'line', borderColor:'#c8960c', borderDash:[4,4], pointRadius:2, fill:false },
+ ]
+ },
+ options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{color:'#5c6a7a'}}},
+ scales:{ y:{grid:{color:'rgba(0,0,0,0.06)'},ticks:{color:'#5c6a7a'}}, x:{ticks:{color:'#5c6a7a'},title:{display:true,text:'Digit Sum',color:'#5c6a7a'}} } }
+ });
+
+ // Digit sum table
+ const FIB_SET = new Set([0,1,2,3,5,8,13]);
+ const PRIME_SET_SMALL = new Set([2,3,5,7,11,13,17]);
+ let dsHtml = '';
+ sums.forEach(s =>{
+ const d = dist[s];
+ const drought = ds.sum_drought[s] ?? '—';
+ let special = [];
+ if (FIB_SET.has(s)) special.push('<span style="color:#c8960c">FIB</span>');
+ if (PRIME_SET_SMALL.has(s)) special.push('<span style="color:#003366">PRIME</span>');
+ if (s === 9) special.push('<span style="color:#00a651">LUCKY 9</span>');
+ dsHtml += `<tr><td style="font-weight:700">${s}</td><td>${d.count}</td><td style="color:var(--muted)">${d.expected}</td>
+ <td style="color:${pctColor(d.deviation_pct)}">${d.deviation_pct >0 ? '+' : ''}${d.deviation_pct}%</td>
+ <td>${drought}</td><td>${special.join(' ')}</td></tr>`;
+ });
+ document.getElementById('tbDigitSum').innerHTML = dsHtml;
+
+ // Modular tables
+ const modContainer = document.getElementById('modularTables');
+ for (const [modKey, modData] of Object.entries(ds.modular)) {
+ let mHtml = `<h3 style="font-size:13px;margin:14px 0 8px;color:var(--purple)">Digit Sum ${modKey.toUpperCase()}</h3><table><thead><tr><th>Remainder</th><th>Count</th><th>Expected</th><th>%</th></tr></thead><tbody>`;
+ for (const [rem, v] of Object.entries(modData)) {
+ mHtml += `<tr><td style="font-weight:700">${rem}</td><td>${v.count}</td><td style="color:var(--muted)">${v.expected}</td><td>${v.pct}%</td></tr>`;
+ }
+ mHtml += '</tbody></table>';
+ modContainer.innerHTML += mHtml;
+ }
+ }
+
+ // --- Markov Chain ---
+ if (DATA.markov) {
+ const mc = DATA.markov;
+ const container = document.getElementById('markovContent');
+ for (const [pos, data] of Object.entries(mc)) {
+ const posLabel = pos === 'pos1' ? 'Position 1' : 'Position 2';
+ let html = `<h3 style="font-size:13px;margin:14px 0 8px;color:var(--purple)">${posLabel}</h3>`;
+ html += `<div style="font-size:12px;margin-bottom:8px;color:var(--muted)">
+ Last digit drawn: <b style="color:var(--accent)">${data.last_digit}</b>→
+ Predicted next: <b style="color:var(--green)">${data.predicted_next}</b>
+ (confidence: ${(data.prediction_confidence*100).toFixed(1)}%)</div>`;
+
+ // Transition matrix as small heatmap
+ html += '<div style="display:grid;grid-template-columns:30px repeat(10,1fr);gap:1px;max-width:500px;font-size:10px;margin-bottom:16px">';
+ html += '<div></div>';
+ for (let c = 0; c < 10; c++) html += `<div style="text-align:center;color:var(--muted);font-weight:700">${c}</div>`;
+ const matrix = data.transition_matrix;
+ for (let r = 0; r < 10; r++) {
+ html += `<div style="display:flex;align-items:center;justify-content:center;color:var(--muted);font-weight:700">${r}</div>`;
+ for (let c = 0; c < 10; c++) {
+ const prob = matrix[r][c];
+ const intensity = Math.min(1, prob * 8);
+ const bg = `rgba(0,51,102,${0.05 + intensity * 0.85})`;
+ html += `<div style="background:${bg};text-align:center;padding:4px 0;border-radius:2px;color:#fff" title="${r}→${c}: ${(prob*100).toFixed(1)}%">${(prob*100).toFixed(0)}</div>`;
+ }
+ }
+ html += '</div>';
+ container.innerHTML += html;
+ }
+ }
+
+ // --- Math Super-Recommendations ---
+ if (DATA.math_recommendations) {
+ const recs = DATA.math_recommendations;
+ const container = document.getElementById('mathRecsGrid');
+
+ const TAG_COLORS = {
+ FIB_PAIR:'#c8960c', PRIME_PAIR:'#003366', TRIANGULAR:'#00a651', SQUARE:'#0072ce',
+ FIB_DIGITS:'#e8c84a', PRIME_DIGITS:'#0072ce', SUM_FIB:'#fab1a0', SUM_PRIME:'#4da3e8',
+ GOLDEN_RATIO:'#dc3545', DOUBLE:'#dfe6e9'
+ };
+
+ recs.forEach((r, i) =>{
+ const tags = r.tags.map(t =>`<span style="display:inline-block;padding:1px 5px;border-radius:4px;font-size:9px;margin:1px;background:${TAG_COLORS[t]||'#636e72'}33;color:${TAG_COLORS[t]||'#636e72'}">${t.replace(/_/g,' ')}</span>`).join('');
+ container.innerHTML += `<div class="rec-card" style="border-color:${i<3?'rgba(200,150,12,0.5)':'rgba(0,51,102,0.15)'}">
+ <div style="font-size:11px;color:var(--muted)">#${i+1} · ${r.tag_count} properties</div>
+ <div class="rec-num">${r.pair}</div>
+ <div class="rec-score">Score: <b>${r.score}</b></div>
+ <div style="margin-top:6px">${tags}</div>
+ <div class="rec-detail">Drought: <b>${r.drought}</b>· Freq: <b>${r.frequency}</b></div>
+ </div>`;
+ });
+
+ // Stacked bar chart
+ const top12 = recs.slice(0, 12);
+ new Chart(document.getElementById('chartMathRecs'), {
+ type: 'bar',
+ data: {
+ labels: top12.map(r =>r.pair),
+ datasets: [
+ { label:'Score', data:top12.map(r=>r.score), backgroundColor: top12.map((_,i) =>{
+ const h = 260 - (i/12)*60; return `hsla(${h},60%,55%,0.7)`;
+ }), borderRadius: 6 },
+ ]
+ },
+ options: { responsive:true, maintainAspectRatio:false, indexAxis:'y',
+ plugins:{ legend:{display:false} },
+ scales:{
+ x:{ grid:{color:'rgba(0,0,0,0.06)'}, ticks:{color:'#5c6a7a'}, title:{display:true,text:'Composite Score',color:'#5c6a7a'} },
+ y:{ ticks:{color:'#e1e4ea', font:{size:14, weight:'bold'}} }
+ }
+ }
+ });
+ }
+}
+
+// =========================================================================
+// FIREBALL
+// =========================================================================
+function renderFireball() {
+ const fb = DATA.fireball;
+ if (!fb || fb.error) return;
+
+ // KPIs
+ document.getElementById('fbKpiRow').innerHTML = `
+ <div class="kpi"><div class="label">Total Fireball Draws</div><div class="value blue">${fb.total_fireball_draws.toLocaleString()}</div></div>
+ <div class="kpi"><div class="label">Matches Either #</div><div class="value green">${fb.matches_either} (${fb.matches_either_pct}%)</div></div>
+ <div class="kpi"><div class="label">Expected Match %</div><div class="value purple">${fb.expected_match_pct}%</div></div>
+ <div class="kpi"><div class="label">Consecutive Repeats</div><div class="value red">${fb.consecutive_repeats} (${fb.consecutive_repeat_pct}%)</div></div>`;
+
+ // Frequency chart
+ const labels = Array.from({length:10},(_,i)=>String(i));
+ new Chart(document.getElementById('chartFbFreq'), {
+ type:'bar', data:{ labels, datasets:[
+ { label:'Count', data:labels.map(d=>fb.frequency[d].count), backgroundColor:'rgba(255,107,107,0.6)', borderRadius:4 },
+ { label:'Expected', data:labels.map(d=>fb.frequency[d].expected), type:'line', borderColor:'#c8960c', borderDash:[5,3], pointRadius:0 }
+ ]}, options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#5c6a7a'}}},
+ scales:{x:{ticks:{color:'#e1e4ea'}},y:{grid:{color:'rgba(0,0,0,0.06)'},ticks:{color:'#5c6a7a'}}}}
+ });
+
+ // Drought chart
+ new Chart(document.getElementById('chartFbDrought'), {
+ type:'bar', data:{ labels, datasets:[
+ { label:'Draws Since', data:labels.map(d=>fb.drought[d]), backgroundColor:'rgba(0,51,102,0.6)', borderRadius:4 }
+ ]}, options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+ scales:{x:{ticks:{color:'#e1e4ea'}},y:{grid:{color:'rgba(0,0,0,0.06)'},ticks:{color:'#5c6a7a'}}}}
+ });
+
+ // Hot/Cold table
+ let hcHtml = '';
+ for (let d = 0; d < 10; d++) {
+ const h = fb.hot_cold[d];
+ hcHtml += `<tr><td style="font-weight:700;font-size:16px">${d}</td><td>${h.count}</td><td>${h.expected}</td><td>${h.ratio}</td><td>${badge(h.label)}</td></tr>`;
+ }
+ document.getElementById('tbFbHotCold').innerHTML = hcHtml;
+
+ // Match info
+ document.getElementById('fbMatchInfo').innerHTML = `
+ Matches Number1: <b>${fb.matches_number1}</b><br>
+ Matches Number2: <b>${fb.matches_number2}</b><br>
+ Matches Either: <b>${fb.matches_either}</b> (${fb.matches_either_pct}%) — Expected: ${fb.expected_match_pct}%`;
+
+ // Triplets table
+ let tripHtml = '';
+ fb.top_triplets.forEach((t, i) =>{
+ tripHtml += `<tr><td>${i+1}</td><td style="font-weight:700;font-size:15px">${t.triplet}</td><td>${t.count}</td></tr>`;
+ });
+ document.getElementById('tbFbTriplets').innerHTML = tripHtml;
+
+ // E/M chart
+ if (fb.evening_vs_midday) {
+ const eData = fb.evening_vs_midday.E || {};
+ const mData = fb.evening_vs_midday.M || {};
+ new Chart(document.getElementById('chartFbEM'), {
+ type:'bar', data:{ labels, datasets:[
+ { label:'Evening', data:labels.map(d=>eData[d]||0), backgroundColor:'rgba(0,51,102,0.6)', borderRadius:4 },
+ { label:'Midday', data:labels.map(d=>mData[d]||0), backgroundColor:'rgba(200,150,12,0.6)', borderRadius:4 }
+ ]}, options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#5c6a7a'}}},
+ scales:{x:{ticks:{color:'#e1e4ea'}},y:{grid:{color:'rgba(0,0,0,0.06)'},ticks:{color:'#5c6a7a'}}}}
+ });
+ }
+
+ // Recommendations
+ let recHtml = '';
+ fb.recommendations.forEach((r, i) =>{
+ recHtml += `<tr><td>${i+1}</td><td style="font-weight:700;font-size:16px">${r.digit}</td><td><b>${r.score}</b></td><td>${r.drought}</td><td>${badge(r.hot_cold)}</td></tr>`;
+ });
+ document.getElementById('tbFbRecs').innerHTML = recHtml;
+}
+
+// =========================================================================
+// EVENING vs MIDDAY
+// =========================================================================
+function renderEveningMidday() {
+ const em = DATA.evening_vs_midday;
+ if (!em) return;
+ const labels = Array.from({length:10},(_,i)=>String(i));
+
+ // Evening freq chart
+ if (em.E) {
+ const ef = em.E.digit_frequency;
+ new Chart(document.getElementById('chartEmEveFreq'), {
+ type:'bar', data:{ labels, datasets:[
+ { label:'Total', data:labels.map(d=>ef[d].total), backgroundColor:'rgba(0,51,102,0.6)', borderRadius:4 },
+ { label:'Expected', data:labels.map(d=>ef[d].expected), type:'line', borderColor:'#c8960c', borderDash:[5,3], pointRadius:0 }
+ ]}, options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#5c6a7a'}}},
+ scales:{x:{ticks:{color:'#e1e4ea'}},y:{grid:{color:'rgba(0,0,0,0.06)'},ticks:{color:'#5c6a7a'}}}}
+ });
+ }
+
+ // Midday freq chart
+ if (em.M) {
+ const mf = em.M.digit_frequency;
+ new Chart(document.getElementById('chartEmMidFreq'), {
+ type:'bar', data:{ labels, datasets:[
+ { label:'Total', data:labels.map(d=>mf[d].total), backgroundColor:'rgba(200,150,12,0.6)', borderRadius:4 },
+ { label:'Expected', data:labels.map(d=>mf[d].expected), type:'line', borderColor:'#003366', borderDash:[5,3], pointRadius:0 }
+ ]}, options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#5c6a7a'}}},
+ scales:{x:{ticks:{color:'#e1e4ea'}},y:{grid:{color:'rgba(0,0,0,0.06)'},ticks:{color:'#5c6a7a'}}}}
+ });
+ }
+
+ // Divergence chart
+ if (em.divergence) {
+ const div = em.divergence;
+ new Chart(document.getElementById('chartEmDivergence'), {
+ type:'bar', data:{ labels, datasets:[
+ { label:'Evening Dev%', data:labels.map(d=>div[d]?div[d].evening_dev:0), backgroundColor:'rgba(0,51,102,0.6)', borderRadius:4 },
+ { label:'Midday Dev%', data:labels.map(d=>div[d]?div[d].midday_dev:0), backgroundColor:'rgba(200,150,12,0.6)', borderRadius:4 }
+ ]}, options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#5c6a7a'}}},
+ scales:{x:{ticks:{color:'#e1e4ea'}},y:{grid:{color:'rgba(0,0,0,0.06)'},ticks:{color:'#5c6a7a'},title:{display:true,text:'Deviation %',color:'#5c6a7a'}}}}
+ });
+ }
+
+ // Evening recommendations
+ if (em.E && em.E.recommendations_top15) {
+ let html = '';
+ em.E.recommendations_top15.forEach((r, i) =>{
+ html += `<tr><td>${i+1}</td><td style="font-weight:700">${r.pair}</td><td>${r.score}</td><td>${r.drought}</td><td>${r.frequency}</td></tr>`;
+ });
+ document.getElementById('tbEmEveRecs').innerHTML = html;
+ }
+
+ // Midday recommendations
+ if (em.M && em.M.recommendations_top15) {
+ let html = '';
+ em.M.recommendations_top15.forEach((r, i) =>{
+ html += `<tr><td>${i+1}</td><td style="font-weight:700">${r.pair}</td><td>${r.score}</td><td>${r.drought}</td><td>${r.frequency}</td></tr>`;
+ });
+ document.getElementById('tbEmMidRecs').innerHTML = html;
+ }
+
+ // Hot/Cold tables
+ ['E','M'].forEach(dt =>{
+ if (!em[dt]) return;
+ const hc = em[dt].hot_cold;
+ const tbId = dt === 'E' ? 'tbEmEveHC' : 'tbEmMidHC';
+ let html = '';
+ for (let d = 0; d < 10; d++) {
+ const h = hc[d];
+ html += `<tr><td style="font-weight:700">${d}</td><td>${h.count}</td><td>${h.ratio}</td><td>${badge(h.label)}</td></tr>`;
+ }
+ document.getElementById(tbId).innerHTML = html;
+ });
+}
+
+// =========================================================================
+// CROSS-REFERENCE
+// =========================================================================
+function renderCrossRef() {
+ const xr = DATA.cross_reference;
+ if (!xr) return;
+
+ // Cross matrix heatmap table
+ const tags = xr.all_tags;
+ const shortLabels = {
+ 'FIB_PAIR':'Fib Pair','PRIME_PAIR':'Prime Pair','TRIANGULAR':'Triang','SQUARE':'Square',
+ 'FIB_DIGITS':'Fib Digs','PRIME_DIGITS':'Prime Digs','SUM_FIB':'Sum Fib','SUM_PRIME':'Sum Prim',
+ 'GOLDEN_RATIO':'Golden','DOUBLE':'Double'
+ };
+ let html = '<table style="font-size:11px"><thead><tr><th></th>';
+ tags.forEach(t =>{ html += `<th style="writing-mode:vertical-lr;text-align:left;padding:4px">${shortLabels[t]||t}</th>`; });
+ html += '</tr></thead><tbody>';
+ tags.forEach(t1 =>{
+ html += `<tr><td style="font-weight:600;white-space:nowrap">${shortLabels[t1]||t1}</td>`;
+ tags.forEach(t2 =>{
+ const v = xr.cross_matrix[t1][t2].count;
+ const max = xr.cross_matrix[t1][t1].count || 1;
+ const intensity = Math.min(1, v / max);
+ const bg = t1 === t2 ? `rgba(0,51,102,${0.2+intensity*0.5})` : `rgba(0,166,81,${intensity*0.6})`;
+ html += `<td style="background:${bg};text-align:center;padding:6px;font-weight:600;border-radius:2px">${v}</td>`;
+ });
+ html += '</tr>';
+ });
+ html += '</tbody></table>';
+ document.getElementById('crossMatrixWrap').innerHTML = html;
+
+ // Multi-property pairs table
+ const TAG_COLORS = {
+ 'FIB_PAIR':'#c8960c','PRIME_PAIR':'#00a651','TRIANGULAR':'#0072ce','SQUARE':'#dc3545',
+ 'FIB_DIGITS':'#0072ce','PRIME_DIGITS':'#28a745','SUM_FIB':'#dc3545','SUM_PRIME':'#4da3e8',
+ 'GOLDEN_RATIO':'#e8c84a','DOUBLE':'#003366','MULTI_XREF':'#e84393'
+ };
+ let mpHtml = '';
+ xr.multi_property_pairs.forEach(p =>{
+ const tags = p.tags.map(t =>`<span style="display:inline-block;padding:1px 5px;border-radius:4px;font-size:9px;margin:1px;background:${TAG_COLORS[t]||'#636e72'}33;color:${TAG_COLORS[t]||'#636e72'}">${t.replace(/_/g,' ')}</span>`).join('');
+ mpHtml += `<tr><td style="font-weight:700;font-size:16px">${p.pair}</td><td>${tags}</td><td>${p.tag_count}</td><td>${p.frequency}</td><td>${p.drought}</td></tr>`;
+ });
+ document.getElementById('tbMultiProp').innerHTML = mpHtml;
+}
+
+// =========================================================================
+// ULTIMATE PICKS
+// =========================================================================
+function renderUltimate() {
+ const ult = DATA.ultimate_recommendation;
+ if (!ult) return;
+
+ // Cross-agreement badges
+ const ca = ult.cross_agreement || [];
+ const caGrid = document.getElementById('crossAgreementGrid');
+ ca.filter(c =>c.agreement_level >= 2).forEach(c =>{
+ const color = c.agreement_level === 3 ? 'var(--hot)' : 'var(--yellow)';
+ const border = c.agreement_level === 3 ? 'rgba(255,107,107,0.5)' : 'rgba(200,150,12,0.2)';
+ caGrid.innerHTML += `<div style="background:var(--card);border:2px solid ${border};border-radius:10px;padding:10px;text-align:center">
+ <div style="font-size:10px;color:${color};font-weight:700">${c.label}</div>
+ <div style="font-size:28px;font-weight:800;color:${color}">${c.pair}</div>
+ <div style="font-size:10px;color:var(--muted)">${c.in_overall?'':''} All ${c.in_evening?'':''} Eve ${c.in_midday?'':''} Mid</div>
+ </div>`;
+ });
+
+ // Overall top 20
+ renderUltGrid(ult.overall || [], 'ultOverallGrid');
+ renderUltGrid(ult.evening || [], 'ultEveGrid');
+ renderUltGrid(ult.midday || [], 'ultMidGrid');
+
+ // Fireball recs tables
+ renderFbTable(ult.fireball_overall || [], 'tbUltFbAll');
+ renderFbTable(ult.fireball_evening || [], 'tbUltFbEve');
+ renderFbTable(ult.fireball_midday || [], 'tbUltFbMid');
+
+ // Signal breakdown radar chart for top 10 overall
+ const top10 = (ult.overall || []).slice(0, 10);
+ if (top10.length >0) {
+ const signalKeys = ['drought','frequency','cold','markov','math_properties','cross_ref','digit_align','trend','fireball_affinity'];
+ const datasets = top10.map((r, i) =>({
+ label: r.pair,
+ data: signalKeys.map(k =>r.signals[k] || 0),
+ borderColor: COLORS10[i],
+ backgroundColor: COLORS10[i] + '22',
+ pointRadius: 2
+ }));
+ new Chart(document.getElementById('chartUltSignals'), {
+ type: 'radar',
+ data: { labels: signalKeys.map(k =>k.replace(/_/g,' ')), datasets },
+ options: {
+ responsive: true, maintainAspectRatio: false,
+ scales: { r: { angleLines: {color:'rgba(0,0,0,0.08)'}, grid:{color:'rgba(0,0,0,0.06)'},
+ ticks:{display:false}, pointLabels:{color:'#5c6a7a',font:{size:11}} } },
+ plugins: { legend: { labels: { color:'#e1e4ea', font:{size:11} } } }
+ }
+ });
+ }
+}
+
+function renderUltGrid(recs, containerId) {
+ const container = document.getElementById(containerId);
+ recs.forEach((r, i) =>{
+ const d1 = r.pair[0], d2 = r.pair[1];
+ const conf = r.confidence || 0;
+ const confColor = conf >= 60 ? 'var(--green)' : conf >= 40 ? 'var(--yellow)' : 'var(--muted)';
+ const borderColor = i < 3 ? 'rgba(200,150,12,0.5)' : 'rgba(0,51,102,0.15)';
+ const tags = (r.signals && r.signals.tags) ? r.signals.tags.map(t =>`<span style="font-size:8px;color:var(--muted)">${t.replace(/_/g,' ')}</span>`).join(' ') : '';
+ container.innerHTML += `<div class="rec-card" style="border-color:${borderColor}">
+ <div style="font-size:10px;color:var(--muted)">#${i+1}</div>
+ <div class="rec-num" style="font-size:30px"><span>${d1}</span><span style="font-size:16px;color:var(--muted);margin:0 1px;">-</span><span>${d2}</span></div>
+ <div class="rec-score">Score: <b>${r.score}</b></div>
+ <div style="font-size:11px;margin-top:4px">Conf: <b style="color:${confColor}">${conf}%</b></div>
+ <div class="rec-detail">D:${r.drought} F:${r.frequency}</div>
+ <div style="margin-top:4px">${tags}</div>
+ </div>`;
+ });
+}
+
+function renderFbTable(recs, tbId) {
+ let html = '';
+ recs.forEach((r, i) =>{
+ html += `<tr><td>${i+1}</td><td style="font-weight:700;font-size:16px">${r.digit}</td><td>${r.score}</td><td>${r.drought}</td></tr>`;
+ });
+ document.getElementById(tbId).innerHTML = html;
+}
+
+// =========================================================================
+// FINAL PICKS — clean, simple presentation
+// =========================================================================
+function renderFinalPicks() {
+ const u = DATA.ultimate_recommendation;
+ if (!u) return;
+
+ // Helper: build a pick card
+ function pickCard(pair, rank, score, tags, accent, isTriple) {
+ const d1 = pair[0], d2 = pair[1];
+ const tagStr = (tags && tags.length) ? tags.filter(t=>t!=='MULTI_XREF').slice(0,3).map(t =>
+ `<span style="display:inline-block;padding:1px 5px;border-radius:4px;font-size:9px;background:rgba(0,51,102,0.15);color:var(--purple);margin:1px;">${t}</span>`
+ ).join('') : '';
+ const tripleTag = isTriple ? `<div style="font-size:10px;font-weight:700;color:#dc3545;margin-top:3px;">TRIPLE</div>` : '';
+ return `<div style="background:linear-gradient(135deg,rgba(${accent},0.12),rgba(${accent},0.04));
+ border:1px solid rgba(${accent},0.25);border-radius:12px;padding:14px;text-align:center;">
+ <div style="font-size:11px;color:var(--muted);">#${rank}</div>
+ <div style="font-size:36px;font-weight:800;color:rgb(${accent});">
+ <span>${d1}</span><span style="font-size:18px;color:var(--muted);margin:0 2px;">-</span><span>${d2}</span>
+ </div>
+ <div style="font-size:12px;color:var(--muted);margin-top:2px;">Score: <b style="color:var(--text)">${score}</b></div>
+ ${tripleTag}
+ <div style="margin-top:4px;">${tagStr}</div>
+ </div>`;
+ }
+
+ // Helper: fireball pick cards
+ function fbCard(digit, rank, score, accent) {
+ return `<div style="background:linear-gradient(135deg,rgba(${accent},0.12),rgba(${accent},0.04));
+ border:1px solid rgba(${accent},0.25);border-radius:10px;padding:10px 16px;text-align:center;min-width:65px;">
+ <div style="font-size:10px;color:var(--muted);">#${rank}</div>
+ <div style="font-size:30px;font-weight:800;color:#dc3545;">${digit}</div>
+ <div style="font-size:11px;color:var(--muted);">Score: ${score}</div>
+ </div>`;
+ }
+
+ // Get triple-agreement pairs
+ const triples = (u.cross_agreement || []).filter(a =>a.agreement_level === 3);
+ const tripleSet = new Set(triples.map(t =>t.pair));
+
+ // Get signals/tags from overall recs for lookup
+ const overallMap = {};
+ (u.overall || []).forEach(r =>{ overallMap[r.pair] = r; });
+ const eveMap = {};
+ (u.evening || []).forEach(r =>{ eveMap[r.pair] = r; });
+ const midMap = {};
+ (u.midday || []).forEach(r =>{ midMap[r.pair] = r; });
+
+ // === Triple-agreement grid ===
+ let tripleHtml = '';
+ if (triples.length === 0) {
+ tripleHtml = '<div style="color:var(--muted);font-size:13px;">No triple-agreement pairs found.</div>';
+ } else {
+ triples.forEach((t, i) =>{
+ const rec = overallMap[t.pair] || eveMap[t.pair] || midMap[t.pair] || {};
+ const tags = rec.signals ? rec.signals.tags || [] : [];
+ tripleHtml += pickCard(t.pair, i+1, rec.score || '—', tags, '255,107,107', false);
+ });
+ }
+ document.getElementById('fpTripleGrid').innerHTML = tripleHtml;
+
+ // === Evening top 10 ===
+ let eveHtml = '';
+ (u.evening || []).slice(0, 10).forEach((r, i) =>{
+ const tags = r.signals ? r.signals.tags || [] : [];
+ eveHtml += pickCard(r.pair, i+1, r.score, tags, '108,92,231', tripleSet.has(r.pair));
+ });
+ document.getElementById('fpEveGrid').innerHTML = eveHtml;
+
+ // === Midday top 10 ===
+ let midHtml = '';
+ (u.midday || []).slice(0, 10).forEach((r, i) =>{
+ const tags = r.signals ? r.signals.tags || [] : [];
+ midHtml += pickCard(r.pair, i+1, r.score, tags, '253,203,110', tripleSet.has(r.pair));
+ });
+ document.getElementById('fpMidGrid').innerHTML = midHtml;
+
+ // === Overall top 10 ===
+ let overallHtml = '';
+ (u.overall || []).slice(0, 10).forEach((r, i) =>{
+ const tags = r.signals ? r.signals.tags || [] : [];
+ overallHtml += pickCard(r.pair, i+1, r.score, tags, '0,184,148', tripleSet.has(r.pair));
+ });
+ document.getElementById('fpOverallGrid').innerHTML = overallHtml;
+
+ // === Fireball picks ===
+ const fbAccents = { all: '0,184,148', eve: '108,92,231', mid: '253,203,110' };
+ ['All','Eve','Mid'].forEach(label =>{
+ const key = label === 'All' ? 'fireball_overall' : label === 'Eve' ? 'fireball_evening' : 'fireball_midday';
+ const recs = u[key] || [];
+ let html = '';
+ recs.slice(0, 3).forEach((r, i) =>{
+ html += fbCard(r.digit, i+1, r.score, fbAccents[label.toLowerCase() === 'all' ? 'all' : label.toLowerCase()]);
+ });
+ document.getElementById('fpFb' + label).innerHTML = html;
+ });
+
+ // === Quick-play summary ===
+ const eveTop = (u.evening || []).slice(0, 3);
+ const midTop = (u.midday || []).slice(0, 3);
+ const fbEve = (u.fireball_evening || []).slice(0, 3);
+ const fbMid = (u.fireball_midday || []).slice(0, 3);
+ const tripleList = triples.slice(0, 5).map(t =>`<b style="color:#dc3545">${t.pair}</b>`).join(', ') || '<span style="color:var(--muted)">none</span>';
+
+ function formatPair(pair) {
+ // Display pair as "D1 - D2" so it's clearly a PICK 2 (two separate digits)
+ return `<span style="font-size:22px;font-weight:800;letter-spacing:1px;">${pair[0]}</span>` +
+ `<span style="font-size:14px;color:var(--muted);margin:0 2px;">-</span>` +
+ `<span style="font-size:22px;font-weight:800;letter-spacing:1px;">${pair[1]}</span>`;
+ }
+
+ function formatFbDigit(d) {
+ // Always show as single digit, even for 0
+ return `<span style="font-size:22px;font-weight:800;">${d}</span>`;
+ }
+
+ const summaryHtml = `
+ <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:16px;">
+ <div style="background:rgba(0,51,102,0.05);border:1px solid rgba(0,51,102,0.25);border-radius:12px;padding:18px;">
+ <div style="font-size:13px;color:var(--muted);margin-bottom:8px;"><b style="color:var(--purple);">EVENING — Top Picks</b></div>
+ <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+ ${eveTop.map((r,i) =>`<div style="background:rgba(0,51,102,0.15);color:var(--purple);padding:8px 16px;border-radius:10px;text-align:center;${i===0?'border:2px solid var(--purple);':''}">
+ <div style="font-size:9px;color:var(--muted);">${i===0?' BEST':'#'+(i+1)}</div>
+ ${formatPair(r.pair)}
+ </div>`).join('')}
+ </div>
+ <div style="margin-top:10px;font-size:13px;color:var(--muted);">
+ Fireball: ${fbEve.slice(0,3).map((f,i) =>`<span style="display:inline-block;background:rgba(255,107,107,0.15);color:#dc3545;padding:3px 10px;border-radius:6px;font-weight:800;margin:0 3px;${i===0?'border:1px solid rgba(220,53,69,0.2);':''}">${formatFbDigit(f.digit)}</span>`).join('')}
+ </div>
+ </div>
+ <div style="background:rgba(200,150,12,0.08);border:1px solid rgba(200,150,12,0.25);border-radius:12px;padding:18px;">
+ <div style="font-size:13px;color:var(--muted);margin-bottom:8px;"><b style="color:var(--yellow);">MIDDAY — Top Picks</b></div>
+ <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+ ${midTop.map((r,i) =>`<div style="background:rgba(200,150,12,0.15);color:var(--yellow);padding:8px 16px;border-radius:10px;text-align:center;${i===0?'border:2px solid var(--yellow);':''}">
+ <div style="font-size:9px;color:var(--muted);">${i===0?' BEST':'#'+(i+1)}</div>
+ ${formatPair(r.pair)}
+ </div>`).join('')}
+ </div>
+ <div style="margin-top:10px;font-size:13px;color:var(--muted);">
+ Fireball: ${fbMid.slice(0,3).map((f,i) =>`<span style="display:inline-block;background:rgba(255,107,107,0.15);color:#dc3545;padding:3px 10px;border-radius:6px;font-weight:800;margin:0 3px;${i===0?'border:1px solid rgba(220,53,69,0.2);':''}">${formatFbDigit(f.digit)}</span>`).join('')}
+ </div>
+ </div>
+ </div>
+ <div style="text-align:center;">
+ <span style="font-size:14px;"><b style="color:#dc3545;">Triple-agreement pairs (play anytime):</b></span>&nbsp; ${tripleList}
+ </div>
+ `;
+ document.getElementById('fpQuickSummary').innerHTML = summaryHtml;
+}
+
+// =========================================================================
+// AI META-ANALYSIS
+// =========================================================================
+function renderAiMeta() {
+ const ai = DATA.ai_meta;
+ if (!ai || ai.error) {
+ document.getElementById('aiModelKpis').innerHTML = '<div class="card" style="grid-column:1/-1;text-align:center;color:#dc3545;">AI analysis not available: '+(ai?.error||'unknown error')+'</div>';
+ return;
+ }
+
+ const fmt = n =>Number(n).toLocaleString();
+ const pct = n =>(Number(n)*100).toFixed(1)+'%';
+ const pctR = n =>Number(n).toFixed(1)+'%';
+
+ /* ---------- Model Performance KPIs ---------- */
+ const ml = ai.ml_models || {};
+ const rf = ml.random_forest || {};
+ const gb = ml.gradient_boosting || {};
+ const meta = ai.meta || {};
+ const cv = ai.cross_validation || {};
+
+ const kpis = [
+ {icon:'', label:'RF Accuracy', value:pct(rf.accuracy||0), color:'var(--green)'},
+ {icon:'', label:'RF Precision', value:pct(rf.precision||0), color:'var(--purple)'},
+ {icon:'', label:'RF Recall', value:pct(rf.recall||0), color:'var(--yellow)'},
+ {icon:'', label:'GB Accuracy', value:pct(gb.accuracy||0), color:'var(--green)'},
+ {icon:'', label:'GB Precision', value:pct(gb.precision||0), color:'var(--purple)'},
+ {icon:'', label:'GB Recall', value:pct(gb.recall||0), color:'var(--yellow)'},
+ {icon:'', label:'Features/Pair', value:meta.features_per_pair||'—', color:'var(--accent)'},
+ {icon:'', label:'Total Draws', value:fmt(meta.total_draws||0), color:'var(--accent)'},
+ {icon:'', label:'AI↔Stat Agreement', value:pctR(cv.agreement_pct||0), color:'#0072ce'},
+ {icon:'', label:'Agreed Pairs', value:(cv.agreement||[]).length+'/10', color:'#0072ce'},
+ ];
+ let kpiHtml = '';
+ kpis.forEach(k =>{
+ kpiHtml += `<div class="card" style="text-align:center;padding:14px;">
+ <div style="font-size:22px;">${k.icon}</div>
+ <div style="font-size:11px;color:var(--muted);margin:4px 0;">${k.label}</div>
+ <div style="font-size:20px;font-weight:800;color:${k.color};">${k.value}</div>
+ </div>`;
+ });
+ document.getElementById('aiModelKpis').innerHTML = kpiHtml;
+
+ /* ---------- Cross-validation ---------- */
+ const agPairs = (cv.agreement||[]);
+ const aiOnly = (cv.unique_to_ai||[]);
+ const statOnly = (cv.unique_to_existing||[]);
+ document.getElementById('aiCrossValid').innerHTML = `
+ <h3 style="font-size:17px;margin-bottom:14px;">AI vs Statistical Analysis — Cross-Validation</h3>
+ <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+ <div style="background:rgba(0,114,206,0.08);border:1px solid rgba(0,114,206,0.25);border-radius:12px;padding:16px;text-align:center;">
+ <div style="font-size:13px;color:var(--muted);margin-bottom:6px;">Both Agree</div>
+ <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;">
+ ${agPairs.map(p=>`<span style="background:rgba(0,166,81,0.2);color:var(--green);padding:4px 12px;border-radius:8px;font-weight:800;font-size:16px;">${p[0]} - ${p[1]}</span>`).join('')}
+ </div>
+ </div>
+ <div style="background:rgba(0,114,206,0.05);border:1px solid rgba(0,114,206,0.15);border-radius:12px;padding:16px;text-align:center;">
+ <div style="font-size:13px;color:var(--muted);margin-bottom:6px;">AI Only (new discoveries)</div>
+ <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;">
+ ${aiOnly.map(p=>`<span style="background:rgba(0,51,102,0.15);color:var(--purple);padding:4px 12px;border-radius:8px;font-weight:800;font-size:16px;">${p[0]} - ${p[1]}</span>`).join('')}
+ </div>
+ </div>
+ <div style="background:rgba(0,51,102,0.03);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;">
+ <div style="font-size:13px;color:var(--muted);margin-bottom:6px;">Statistical Only</div>
+ <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;">
+ ${statOnly.map(p=>`<span style="background:rgba(200,150,12,0.2);color:var(--yellow);padding:4px 12px;border-radius:8px;font-weight:800;font-size:16px;">${p[0]} - ${p[1]}</span>`).join('')}
+ </div>
+ </div>
+ </div>
+ <div style="margin-top:14px;padding:12px;background:rgba(0,0,0,0.02);border-radius:8px;font-size:13px;color:var(--muted);line-height:1.7;">
+ <b style="color:#0072ce;">${agPairs.length}/10</b> pairs appear in BOTH the statistical top-10 and AI top-10.
+ ${agPairs.length >= 6 ? '<b style="color:var(--green);">Strong agreement</b>— the AI confirms our statistical signals are finding real patterns.' :
+ agPairs.length >= 4 ? '<b style="color:var(--yellow);">Moderate agreement</b>— the AI partially validates our approach but also discovers new candidates.' :
+ '<b style="color:#dc3545;">Low agreement</b>— the AI sees different patterns than pure statistics. Consider both perspectives.'}
+ The AI-only pairs () represent <b>hidden patterns</b> discovered by machine learning that traditional statistics might miss.
+ </div>`;
+
+ /* ---------- AI Top Picks — Overall ---------- */
+ const aiRecs = ai.ai_recommendations || [];
+ let overallHtml = '';
+ aiRecs.slice(0, 12).forEach((r, i) =>{
+ const s = r.signals || {};
+ const isAgreed = agPairs.includes(r.pair);
+ const borderColor = isAgreed ? 'rgba(0,166,81,0.4)' : i < 3 ? 'rgba(0,114,206,0.3)' : 'rgba(0,0,0,0.06)';
+ const bgColor = isAgreed ? 'rgba(0,166,81,0.05)' : i < 3 ? 'rgba(0,114,206,0.05)' : 'rgba(0,0,0,0.02)';
+ overallHtml += `<div style="border:1px solid ${borderColor};background:${bgColor};border-radius:12px;padding:16px;">
+ <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+ <div>
+ <span style="font-size:11px;color:var(--muted);">#${i+1}</span>
+ <span style="font-size:26px;font-weight:900;color:var(--accent);margin-left:6px;">${r.pair[0]} - ${r.pair[1]}</span>
+ ${isAgreed ? '<span style="font-size:11px;background:rgba(0,166,81,0.2);color:var(--green);padding:2px 8px;border-radius:6px;margin-left:8px;">AGREED</span>' : ''}
+ </div>
+ <div style="text-align:right;">
+ <div style="font-size:18px;font-weight:800;color:#0072ce;">${r.ai_score.toFixed(3)}</div>
+ <div style="font-size:10px;color:var(--muted);">AI Score</div>
+ </div>
+ </div>
+ <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;">
+ <div>ML: <b style="color:var(--purple);">${(s.ml_ensemble||0).toFixed(3)}</b></div>
+ <div>Stat: <b style="color:var(--yellow);">${r.stat_score.toFixed(3)}</b></div>
+ <div>Drought: <b>${r.drought}</b></div>
+ <div>Freq: <b>${r.frequency}</b></div>
+ <div>Markov: <b>${(s.stat_markov||0).toFixed(3)}</b></div>
+ <div>Math: <b>${r.math_tags} tags</b></div>
+ <div>Agreement: <b style="color:${(s.model_agreement||0)>0.8?'var(--green)':'var(--muted)'};">${(s.model_agreement||0).toFixed(2)}</b></div>
+ <div>Confidence: <b>${r.confidence}%</b></div>
+ </div>
+ <div style="margin-top:8px;height:4px;background:rgba(0,0,0,0.06);border-radius:2px;overflow:hidden;">
+ <div style="height:100%;width:${Math.min(100,r.ai_score*200)}%;background:linear-gradient(90deg,#0072ce,#003366);border-radius:2px;"></div>
+ </div>
+ </div>`;
+ });
+ document.getElementById('aiTopOverall').innerHTML = overallHtml;
+
+ /* ---------- E/M AI Picks ---------- */
+ function renderEmPicks(containerId, recs, accentColor) {
+ const el = document.getElementById(containerId);
+ if (!recs || recs.length === 0) { el.innerHTML = '<div style="color:var(--muted);">No data</div>'; return; }
+ let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;">';
+ recs.slice(0, 10).forEach((r, i) =>{
+ html += `<div style="border:1px solid rgba(${accentColor},0.25);background:rgba(${accentColor},0.05);border-radius:10px;padding:12px;text-align:center;">
+ <div style="font-size:10px;color:var(--muted);">#${i+1}</div>
+ <div style="font-size:22px;font-weight:900;color:rgba(${accentColor},1);">${r.pair[0]} - ${r.pair[1]}</div>
+ <div style="font-size:11px;margin-top:4px;">AI: <b>${r.ai_score.toFixed(3)}</b></div>
+ <div style="font-size:10px;color:var(--muted);">ML: ${r.ml_score.toFixed(3)} | Stat: ${r.stat_score.toFixed(3)}</div>
+ </div>`;
+ });
+ html += '</div>';
+ el.innerHTML = html;
+ }
+ renderEmPicks('aiTopEve', ai.ai_recommendations_evening || [], '108,92,231');
+ renderEmPicks('aiTopMid', ai.ai_recommendations_midday || [], '253,203,110');
+
+ /* ---------- AI Fireball ---------- */
+ const aiFb = ai.ai_fireball || [];
+ let fbHtml = '';
+ aiFb.slice(0, 10).forEach((f, i) =>{
+ const barW = Math.min(100, f.score * 200);
+ fbHtml += `<div style="flex:1;min-width:80px;max-width:100px;border:1px solid ${i<3?'rgba(220,53,69,0.2)':'rgba(0,0,0,0.06)'};background:${i<3?'rgba(220,53,69,0.04)':'rgba(0,0,0,0.02)'};border-radius:10px;padding:12px;text-align:center;">
+ <div style="font-size:10px;color:var(--muted);">#${i+1}</div>
+ <div style="font-size:28px;font-weight:900;color:${i<3?'#dc3545':'var(--accent)'};">${f.digit}</div>
+ <div style="font-size:11px;margin-top:4px;">Score: <b>${f.score.toFixed(3)}</b></div>
+ <div style="font-size:10px;color:var(--muted);">Drought: ${f.drought} | Freq: ${f.frequency}</div>
+ <div style="margin-top:6px;height:3px;background:rgba(0,0,0,0.06);border-radius:2px;overflow:hidden;">
+ <div style="height:100%;width:${barW}%;background:#dc3545;border-radius:2px;"></div>
+ </div>
+ </div>`;
+ });
+ document.getElementById('aiFireball').innerHTML = fbHtml;
+
+ /* ---------- Feature Importance Charts ---------- */
+ function drawFeatureChart(canvasId, features, color) {
+ const ctx = document.getElementById(canvasId).getContext('2d');
+ const top10 = (features || []).slice(0, 10);
+ new Chart(ctx, {
+ type: 'bar',
+ data: {
+ labels: top10.map(f =>f[0].replace(/_/g, ' ')),
+ datasets: [{
+ data: top10.map(f =>f[1]),
+ backgroundColor: color + '99',
+ borderColor: color,
+ borderWidth: 2,
+ borderRadius: 6
+ }]
+ },
+ options: {
+ indexAxis: 'y',
+ responsive: true,
+ plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx =>'Importance: ' + ctx.parsed.x.toFixed(4) } } },
+ scales: {
+ x: { title: { display: true, text: 'Feature Importance', color: '#999' }, ticks: { color: '#999' }, grid: { color: 'rgba(0,0,0,0.06)' } },
+ y: { ticks: { color: '#4a5568', font: { size: 11 } }, grid: { display: false } }
+ }
+ }
+ });
+ }
+ drawFeatureChart('aiRfFeatChart', rf.top_features, '#00a651');
+ drawFeatureChart('aiGbFeatChart', gb.top_features, '#003366');
+
+ /* ---------- Backtesting ---------- */
+ const bt = ai.backtest || {};
+ if (bt.composite_results) {
+ let btHtml = `<h3 style="font-size:17px;margin-bottom:14px;">Backtest Results — Signal Validation (last ${bt.test_window} draws)</h3>`;
+ btHtml += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px;">';
+ for (const [key, info] of Object.entries(bt.composite_results)) {
+ const k = key.replace('top_', 'Top ');
+ const liftColor = info.lift_vs_random >= 1.0 ? 'var(--green)' : info.lift_vs_random >= 0.8 ? 'var(--yellow)' : '#dc3545';
+ btHtml += `<div style="background:rgba(0,51,102,0.03);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;">
+ <div style="font-size:13px;color:var(--muted);margin-bottom:6px;">${k}</div>
+ <div style="font-size:20px;font-weight:800;color:${liftColor};">${info.lift_vs_random}x</div>
+ <div style="font-size:11px;color:var(--muted);">Lift vs Random</div>
+ <div style="font-size:12px;margin-top:6px;">${info.hit_count}/${key.split('_')[1]} hit (${info.hit_rate}%)</div>
+ <div style="font-size:11px;color:var(--muted);">${info.total_appearances} appearances (expected: ${info.expected_random})</div>
+ </div>`;
+ }
+ btHtml += '</div>';
+ btHtml += `<div style="padding:12px;background:rgba(0,0,0,0.02);border-radius:8px;font-size:13px;color:var(--muted);line-height:1.7;">
+ <b>How to read this:</b> A lift of <b>1.0x</b> means our picks perform exactly like random. Above 1.0x = better than random.
+ Note: lottery draws are inherently random, so lifts near 1.0x are expected. Any consistent lift >1.0x across signals suggests
+ <b>weak but detectable patterns</b> in the data — likely due to non-uniform digit distributions.
+ </div>`;
+ document.getElementById('aiBacktest').innerHTML = btHtml;
+ }
+
+ /* ---------- Signal Performance Chart ---------- */
+ const sigPerf = bt.signal_performance || {};
+ const sigNames = Object.keys(sigPerf);
+ if (sigNames.length >0) {
+ const sigCtx = document.getElementById('aiSignalChart').getContext('2d');
+ new Chart(sigCtx, {
+ type: 'bar',
+ data: {
+ labels: sigNames.map(s =>s.replace(/_/g, ' ').toUpperCase()),
+ datasets: [{
+ label: 'Lift vs Random',
+ data: sigNames.map(s =>sigPerf[s].lift),
+ backgroundColor: sigNames.map(s =>sigPerf[s].lift >= 1 ? 'rgba(0,166,81,0.65)' : 'rgba(255,107,107,0.7)'),
+ borderColor: sigNames.map(s =>sigPerf[s].lift >= 1 ? '#00a651' : '#dc3545'),
+ borderWidth: 2,
+ borderRadius: 8
+ }]
+ },
+ options: {
+ responsive: true,
+ plugins: {
+ legend: { display: false },
+ annotation: { annotations: { baseline: { type: 'line', yMin: 1, yMax: 1, borderColor: '#0072ce', borderWidth: 2, borderDash: [6,4], label: { display: true, content: 'Random Baseline (1.0x)', color: '#0072ce', position: 'end' } } } }
+ },
+ scales: {
+ y: { beginAtZero: true, title: { display: true, text: 'Lift vs Random', color: '#999' }, ticks: { callback: v =>v+'x', color: '#999' }, grid: { color: 'rgba(0,0,0,0.06)' } },
+ x: { ticks: { color: '#4a5568' }, grid: { display: false } }
+ }
+ }
+ });
+ }
+
+ /* ---------- Clusters ---------- */
+ const clusters = ai.clusters || {};
+ const clusterKeys = Object.keys(clusters);
+ if (clusterKeys.length >0) {
+ let clHtml = '<h3 style="font-size:17px;margin-bottom:14px;">Pair Behavior Clusters (K-Means)</h3>';
+ clHtml += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;">';
+ const clColors = ['108,92,231','0,184,148','253,203,110','255,107,107','88,166,255'];
+ clusterKeys.forEach((cid, ci) =>{
+ const c = clusters[cid];
+ const col = clColors[ci % clColors.length];
+ const pairs = (c.pairs || []).slice(0, 15);
+ clHtml += `<div style="border:1px solid rgba(${col},0.3);background:rgba(${col},0.04);border-radius:12px;padding:16px;">
+ <div style="font-size:14px;font-weight:700;color:rgba(${col},1);margin-bottom:6px;">${c.type}</div>
+ <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">${c.size} pairs in cluster</div>
+ <div style="display:flex;gap:4px;flex-wrap:wrap;">
+ ${pairs.map(p=>`<span style="background:rgba(${col},0.15);color:rgba(${col},1);padding:3px 8px;border-radius:6px;font-size:12px;font-weight:700;">${p}</span>`).join('')}
+ ${c.pairs.length >15 ? '<span style="color:var(--muted);font-size:11px;">+' + (c.pairs.length-15) + ' more</span>' : ''}
+ </div>
+ </div>`;
+ });
+ clHtml += '</div>';
+ document.getElementById('aiClusters').innerHTML = clHtml;
+ }
+
+ /* ---------- Anomalies ---------- */
+ const anomalies = ai.anomalies || [];
+ if (anomalies.length >0) {
+ let anHtml = '<h3 style="font-size:17px;margin-bottom:14px;">Anomaly Detection (Isolation Forest) — Unusual Pairs</h3>';
+ anHtml += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;">';
+ anHtml += '<tr style="border-bottom:2px solid var(--border);"><th style="padding:8px;text-align:left;color:#dc3545;">Pair</th><th style="padding:8px;text-align:center;color:#dc3545;">Anomaly Score</th><th style="padding:8px;text-align:center;color:#dc3545;">Drought</th><th style="padding:8px;text-align:center;color:#dc3545;">Freq</th><th style="padding:8px;text-align:left;color:#dc3545;">Reasons</th></tr>';
+ anomalies.slice(0, 15).forEach((a, i) =>{
+ anHtml += `<tr style="border-bottom:1px solid var(--border);${i<5?'background:rgba(255,107,107,0.04);':''}">
+ <td style="padding:8px;font-weight:800;font-size:16px;color:var(--accent);">${a.pair[0]} - ${a.pair[1]}</td>
+ <td style="padding:8px;text-align:center;font-weight:700;color:#dc3545;">${a.anomaly_score.toFixed(3)}</td>
+ <td style="padding:8px;text-align:center;">${a.drought}</td>
+ <td style="padding:8px;text-align:center;">${a.frequency}</td>
+ <td style="padding:8px;font-size:11px;color:var(--muted);">${(a.reasons||[]).join(', ')}</td>
+ </tr>`;
+ });
+ anHtml += '</table></div>';
+ anHtml += '<div style="margin-top:10px;font-size:12px;color:var(--muted);">Anomalous pairs have unusual combinations of features — they don\'t fit the normal behavioral pattern. This can indicate pairs that are statistically "due" or have unique mathematical properties.</div>';
+ document.getElementById('aiAnomalies').innerHTML = anHtml;
+ }
+
+ /* ---------- Sequence Patterns ---------- */
+ const seq = ai.sequences || {};
+ let seqHtml = '<h3 style="font-size:17px;margin-bottom:14px;">Temporal Sequence Patterns</h3>';
+ seqHtml += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;">';
+
+ // Even/Odd pattern
+ seqHtml += `<div style="background:rgba(0,114,206,0.05);border:1px solid rgba(0,114,206,0.2);border-radius:12px;padding:16px;">
+ <div style="font-size:14px;font-weight:700;color:#0072ce;margin-bottom:8px;">Even/Odd Pattern</div>
+ <div style="font-size:13px;line-height:1.7;">
+ Pattern: <b>${seq.even_odd_pattern||'—'}</b> (z-score: ${seq.even_odd_zscore||0})<br>
+ ${(seq.even_odd_pattern||'')==='CLUSTERED' ? 'Same parity digits tend to <b>cluster together</b>— plays with matching E/O may have slightly higher probability.' :
+ (seq.even_odd_pattern||'')==='ALTERNATING' ? 'Digits tend to <b>alternate</b> between even and odd.' : 'No significant even/odd bias detected.'}
+ </div>
+ </div>`;
+
+ // Cycling
+ seqHtml += `<div style="background:rgba(0,51,102,0.04);border:1px solid rgba(0,51,102,0.15);border-radius:12px;padding:16px;">
+ <div style="font-size:14px;font-weight:700;color:var(--purple);margin-bottom:8px;">Digit Cycling</div>
+ <div style="font-size:13px;line-height:1.7;">
+ D1 cycle tendency: <b>${((seq.d1_cycle_tendency||0)*100).toFixed(1)}%</b><br>
+ D2 cycle tendency: <b>${((seq.d2_cycle_tendency||0)*100).toFixed(1)}%</b><br>
+ <span style="color:var(--muted);">% of draws where digit increments by 1 from previous</span>
+ </div>
+ </div>`;
+
+ // Repeat bigrams
+ const bgs = seq.repeat_bigrams || [];
+ seqHtml += `<div style="background:rgba(200,150,12,0.05);border:1px solid rgba(200,150,12,0.2);border-radius:12px;padding:16px;">
+ <div style="font-size:14px;font-weight:700;color:var(--yellow);margin-bottom:8px;">Repeating Sequences</div>
+ <div style="font-size:13px;line-height:1.7;">
+ ${bgs.length >0 ? bgs.slice(0,5).map(b =>`<b>${b.sequence.join(' → ')}</b> (${b.count}x)`).join('<br>') : 'No significant repeating sequences found'}
+ </div>
+ </div>`;
+
+ // Overdue by rhythm
+ const ovr = seq.overdue_by_rhythm || [];
+ seqHtml += `<div style="background:rgba(0,166,81,0.05);border:1px solid rgba(0,166,81,0.2);border-radius:12px;padding:16px;">
+ <div style="font-size:14px;font-weight:700;color:var(--green);margin-bottom:8px;">Overdue by Own Rhythm</div>
+ <div style="font-size:13px;line-height:1.7;">
+ ${ovr.length >0 ? ovr.slice(0,5).map(o =>`<b>${o.pair}</b>: ${o.overdue_ratio}x overdue (avg gap: ${o.avg_gap}, ${o.draws_since_last} since last)`).join('<br>') : 'No significantly overdue pairs by rhythm'}
+ </div>
+ </div>`;
+
+ seqHtml += '</div>';
+
+ // Autocorrelation summary
+ const sigAc = seq.significant_autocorr || {};
+ if ((sigAc.d1||[]).length >0 || (sigAc.d2||[]).length >0) {
+ seqHtml += `<div style="margin-top:14px;padding:12px;background:rgba(0,0,0,0.02);border-radius:8px;font-size:13px;color:var(--muted);line-height:1.7;">
+ <b>Significant Autocorrelations:</b>
+ ${(sigAc.d1||[]).length >0 ? ' D1 at lags: ' + (sigAc.d1||[]).map(a =>`${a[0]} (r=${a[1]})`).join(', ') + '.' : ' No significant D1 autocorrelation.'}
+ ${(sigAc.d2||[]).length >0 ? ' D2 at lags: ' + (sigAc.d2||[]).map(a =>`${a[0]} (r=${a[1]})`).join(', ') + '.' : ' No significant D2 autocorrelation.'}
+ ${(sigAc.d1||[]).length === 0 && (sigAc.d2||[]).length === 0 ? ' This confirms draws are <b>statistically independent</b>— consistent with truly random outcomes.' : ''}
+ </div>`;
+ }
+ document.getElementById('aiSequences').innerHTML = seqHtml;
+
+ /* ---------- AI Summary ---------- */
+ const top3 = aiRecs.slice(0, 3);
+ const topFb = (aiFb[0] || {});
+ const eveRecs = (ai.ai_recommendations_evening || []).slice(0, 3);
+ const midRecs = (ai.ai_recommendations_midday || []).slice(0, 3);
+ const eveFb = (ai.ai_fireball_evening || []);
+ const midFb = (ai.ai_fireball_midday || []);
+
+ let sumHtml = `<h3 style="font-size:18px;color:#0072ce;margin-bottom:16px;">AI Final Verdict</h3>`;
+ sumHtml += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:16px;">`;
+
+ // Evening
+ sumHtml += `<div style="background:rgba(0,51,102,0.05);border:1px solid rgba(0,51,102,0.25);border-radius:12px;padding:18px;">
+ <div style="font-size:13px;color:var(--muted);margin-bottom:8px;"><b style="color:var(--purple);">AI EVENING PICKS</b></div>
+ <div style="display:flex;gap:10px;flex-wrap:wrap;">
+ ${eveRecs.map((r,i) =>`<div style="background:rgba(0,51,102,0.15);color:var(--purple);padding:8px 16px;border-radius:10px;text-align:center;${i===0?'border:2px solid var(--purple);':''}">
+ <div style="font-size:9px;color:var(--muted);">${i===0?' AI BEST':'#'+(i+1)}</div>
+ <div style="font-size:22px;font-weight:900;">${r.pair[0]} - ${r.pair[1]}</div>
+ <div style="font-size:10px;">${r.ai_score.toFixed(3)}</div>
+ </div>`).join('')}
+ </div>
+ <div style="margin-top:10px;font-size:13px;color:var(--muted);">
+ Fireball: ${eveFb.slice(0,3).map((f,i) =>`<span style="display:inline-block;background:rgba(255,107,107,0.15);color:#dc3545;padding:3px 10px;border-radius:6px;font-weight:800;margin:0 3px;${i===0?'border:1px solid rgba(220,53,69,0.2);':''}">${f.digit}</span>`).join('')}
+ </div>
+ </div>`;
+
+ // Midday
+ sumHtml += `<div style="background:rgba(200,150,12,0.08);border:1px solid rgba(200,150,12,0.25);border-radius:12px;padding:18px;">
+ <div style="font-size:13px;color:var(--muted);margin-bottom:8px;"><b style="color:var(--yellow);">AI MIDDAY PICKS</b></div>
+ <div style="display:flex;gap:10px;flex-wrap:wrap;">
+ ${midRecs.map((r,i) =>`<div style="background:rgba(200,150,12,0.15);color:var(--yellow);padding:8px 16px;border-radius:10px;text-align:center;${i===0?'border:2px solid var(--yellow);':''}">
+ <div style="font-size:9px;color:var(--muted);">${i===0?' AI BEST':'#'+(i+1)}</div>
+ <div style="font-size:22px;font-weight:900;">${r.pair[0]} - ${r.pair[1]}</div>
+ <div style="font-size:10px;">${r.ai_score.toFixed(3)}</div>
+ </div>`).join('')}
+ </div>
+ <div style="margin-top:10px;font-size:13px;color:var(--muted);">
+ Fireball: ${midFb.slice(0,3).map((f,i) =>`<span style="display:inline-block;background:rgba(255,107,107,0.15);color:#dc3545;padding:3px 10px;border-radius:6px;font-weight:800;margin:0 3px;${i===0?'border:1px solid rgba(220,53,69,0.2);':''}">${f.digit}</span>`).join('')}
+ </div>
+ </div>`;
+ sumHtml += `</div>`;
+
+ // Overall best + fireball
+ sumHtml += `<div style="text-align:center;margin-top:8px;">
+ <div style="font-size:14px;margin-bottom:8px;"><b style="color:#0072ce;">AI Overall #1 Pick:</b>
+ <span style="font-size:24px;font-weight:900;color:var(--accent);margin:0 8px;">${top3[0]?.pair[0] || '?'} - ${top3[0]?.pair[1] || '?'}</span>
+ (score: ${top3[0]?.ai_score.toFixed(3) || '—'})
+ </div>
+ <div style="font-size:14px;"><b style="color:#dc3545;">AI Fireball:</b>
+ <span style="font-size:24px;font-weight:900;color:#dc3545;margin:0 8px;">${topFb.digit ?? '?'}</span>
+ (score: ${topFb.score?.toFixed(3) || '—'})
+ </div>
+ </div>`;
+
+ document.getElementById('aiSummary').innerHTML = sumHtml;
+}
+
+// =========================================================================
+// HISTORICAL VALIDATION / BACKTEST
+// =========================================================================
+function renderHistoricalValidation() {
+ const bt = DATA.historical_validation;
+ if (!bt || bt.error) {
+ document.getElementById('btKpis').innerHTML = '<div class="card" style="grid-column:1/-1;text-align:center;color:var(--muted);">Historical validation data not available. Run backtest_engine.py first.</div>';
+ return;
+ }
+
+ const meta = bt.meta || {};
+ const signals = bt.signals || {};
+ const comparison = bt.comparison || [];
+ const multi = bt.multi_hit_analysis || {};
+ const notable = bt.notable_multi_hits || [];
+ const drawLog = bt.draw_log_sample || [];
+ const rolling = bt.rolling_performance || {};
+ const best = bt.best_signal || {};
+ const worst = bt.worst_signal || {};
+
+ // ── KPIs ──
+ const bestSig = signals[best.key] || {};
+ const multi3 = multi['3'] || {};
+ const kpiData = [
+ { label: 'Draws Tested', value: meta.test_draws, icon: '' },
+ { label: 'Random Baseline', value: meta.random_hit_rate_pct + '%', icon: '' },
+ { label: 'Best Signal', value: best.name || '-', icon: '' },
+ { label: 'Best Hit Rate', value: best.hit_rate_pct + '%', icon: '' },
+ { label: 'Best Lift', value: best.lift + 'x', icon: '' },
+ { label: '3+ Signals Agreed', value: (multi3.draws_with_agreement||0) + ' (' + (multi3.rate_pct||0) + '%)', icon: '' },
+ { label: 'Signals Tested', value: comparison.length, icon: '' },
+ { label: 'Stat. Significant', value: comparison.filter(c=>c.significant).length + '/' + comparison.length, icon: '' },
+ ];
+ document.getElementById('btKpis').innerHTML = kpiData.map(k =>`
+ <div class="card" style="text-align:center;padding:16px;">
+ <div style="font-size:28px;">${k.icon}</div>
+ <div style="font-size:22px;font-weight:700;color:var(--accent);margin:4px 0;">${k.value}</div>
+ <div style="font-size:12px;color:var(--muted);">${k.label}</div>
+ </div>
+ `).join('');
+
+ // ── Comparison Bar Chart ──
+ const sortedComp = [...comparison].sort((a,b) =>b.hit_rate_pct - a.hit_rate_pct);
+ new Chart(document.getElementById('btComparisonChart').getContext('2d'), {
+ type: 'bar',
+ data: {
+ labels: sortedComp.map(c =>c.name),
+ datasets: [
+ {
+ label: 'Hit Rate %',
+ data: sortedComp.map(c =>c.hit_rate_pct),
+ backgroundColor: sortedComp.map(c =>c.lift >= 1 ? 'rgba(0,166,81,0.65)' : 'rgba(214,48,49,0.5)'),
+ borderColor: sortedComp.map(c =>c.lift >= 1 ? 'rgba(0,166,81,1)' : 'rgba(214,48,49,1)'),
+ borderWidth: 1,
+ },
+ {
+ label: 'Random Baseline %',
+ data: sortedComp.map(() =>meta.random_hit_rate_pct),
+ type: 'line',
+ borderColor: 'rgba(200,150,12,0.8)',
+ borderDash: [6,4],
+ borderWidth: 2,
+ pointRadius: 0,
+ fill: false,
+ }
+ ]
+ },
+ options: {
+ responsive: true,
+ plugins: {
+ legend: { labels: { color: '#4a5568', font: { size: 11 } } },
+ tooltip: { callbacks: { label: ctx =>ctx.dataset.label + ': ' + ctx.parsed.y + '%' } }
+ },
+ scales: {
+ x: { ticks: { color: '#6b7280', font: { size: 10 }, maxRotation: 45 }, grid: { color: 'rgba(0,0,0,0.06)' } },
+ y: { ticks: { color: '#6b7280' }, grid: { color: 'rgba(0,0,0,0.06)' }, title: { display: true, text: 'Hit Rate %', color: '#6b7280' } }
+ }
+ }
+ });
+
+ // ── Lift Chart ──
+ const liftSorted = [...comparison].sort((a,b) =>b.lift - a.lift);
+ new Chart(document.getElementById('btLiftChart').getContext('2d'), {
+ type: 'bar',
+ data: {
+ labels: liftSorted.map(c =>c.name),
+ datasets: [{
+ label: 'Lift (x)',
+ data: liftSorted.map(c =>c.lift),
+ backgroundColor: liftSorted.map(c =>{
+ if (c.lift >= 1.05) return 'rgba(0,166,81,0.8)';
+ if (c.lift >= 0.95) return 'rgba(200,150,12,0.6)';
+ return 'rgba(214,48,49,0.5)';
+ }),
+ borderWidth: 1,
+ }]
+ },
+ options: {
+ indexAxis: 'y',
+ responsive: true,
+ plugins: {
+ legend: { display: false },
+ annotation: { annotations: { baseline: { type: 'line', xMin: 1, xMax: 1, borderColor: 'rgba(200,150,12,0.8)', borderWidth: 2, borderDash: [5,3] } } }
+ },
+ scales: {
+ x: { ticks: { color: '#6b7280' }, grid: { color: 'rgba(0,0,0,0.06)' }, title: { display: true, text: 'Lift over Random', color: '#6b7280' } },
+ y: { ticks: { color: '#4a5568', font: { size: 11 } }, grid: { display: false } }
+ }
+ }
+ });
+
+ // ── Agreement Chart ──
+ const agreeLabels = [], agreeData = [];
+ for (let t = 1; t <= 8; t++) {
+ const m = multi[String(t)];
+ if (m) {
+ agreeLabels.push(t + '+ signals');
+ agreeData.push(m.rate_pct);
+ }
+ }
+ new Chart(document.getElementById('btAgreementChart').getContext('2d'), {
+ type: 'bar',
+ data: {
+ labels: agreeLabels,
+ datasets: [{
+ label: '% of draws where N+ signals hit',
+ data: agreeData,
+ backgroundColor: agreeData.map((v,i) =>{
+ const colors = ['rgba(0,166,81,0.2)','rgba(0,166,81,0.4)','rgba(0,166,81,0.4)','rgba(0,166,81,0.6)','rgba(0,166,81,0.65)','rgba(0,166,81,0.8)','rgba(0,166,81,0.9)','rgba(0,166,81,1)'];
+ return colors[i] || colors[0];
+ }),
+ borderWidth: 1,
+ }]
+ },
+ options: {
+ responsive: true,
+ plugins: { legend: { display: false } },
+ scales: {
+ x: { ticks: { color: '#6b7280' }, grid: { color: 'rgba(0,0,0,0.06)' } },
+ y: { ticks: { color: '#6b7280' }, grid: { color: 'rgba(0,0,0,0.06)' }, title: { display: true, text: '% of Draws', color: '#6b7280' } }
+ }
+ }
+ });
+
+ // ── Signal Table ──
+ const tbl = document.getElementById('btSignalTable');
+ tbl.querySelector('thead').innerHTML = `<tr style="border-bottom:2px solid rgba(0,0,0,0.1);">
+ ${['Signal','Hits','Total','Hit Rate','Random','Lift','p-value','Significant?','Max Streak','Avg Position','Avg Gap'].map(h =>`<th style="padding:10px 8px;text-align:left;color:var(--accent);font-size:12px;">${h}</th>`).join('')}
+ </tr>`;
+ const sigKeys = Object.keys(signals);
+ sigKeys.sort((a,b) =>signals[b].lift - signals[a].lift);
+ tbl.querySelector('tbody').innerHTML = sigKeys.map(k =>{
+ const s = signals[k];
+ const liftColor = s.lift >= 1 ? 'var(--green)' : s.lift >= 0.9 ? 'var(--accent)' : 'var(--red)';
+ const sigBadge = s.significant ? '<span class="badge badge-hot">YES</span>' : '<span class="badge badge-cold">NO</span>';
+ return `<tr style="border-bottom:1px solid rgba(0,0,0,0.06);">
+ <td style="padding:8px;font-weight:600;">${s.name}</td>
+ <td style="padding:8px;">${s.hits}</td>
+ <td style="padding:8px;">${s.total}</td>
+ <td style="padding:8px;font-weight:700;color:${liftColor};">${s.hit_rate_pct}%</td>
+ <td style="padding:8px;color:var(--muted);">${s.random_rate_pct}%</td>
+ <td style="padding:8px;font-weight:700;color:${liftColor};">${s.lift}x</td>
+ <td style="padding:8px;color:var(--muted);">${s.p_value < 0.001 ? '<0.001' : s.p_value.toFixed(4)}</td>
+ <td style="padding:8px;">${sigBadge}</td>
+ <td style="padding:8px;text-align:center;">${s.max_hit_streak}</td>
+ <td style="padding:8px;text-align:center;">${s.avg_hit_position || '-'}</td>
+ <td style="padding:8px;text-align:center;">${s.avg_gap_between_hits || '-'}</td>
+ </tr>`;
+ }).join('');
+
+ // ── Rolling Performance Chart ──
+ const rollingColors = [
+ 'rgba(0,166,81,1)', 'rgba(200,150,12,1)', 'rgba(0,51,102,1)',
+ 'rgba(214,48,49,1)', 'rgba(9,132,227,1)', 'rgba(253,121,168,1)',
+ 'rgba(0,114,206,1)', 'rgba(0,206,209,1)', 'rgba(255,165,2,1)',
+ 'rgba(46,213,115,1)', 'rgba(255,99,132,1)',
+ ];
+ const rollingDatasets = [];
+ let rollingLabels = [];
+ let idx = 0;
+ for (const sigKey of sigKeys.slice(0, 6)) { // Top 6 signals for readability
+ const rData = rolling[sigKey] || [];
+ if (rData.length >rollingLabels.length) {
+ rollingLabels = rData.map(r =>r.date_start);
+ }
+ rollingDatasets.push({
+ label: signals[sigKey].name,
+ data: rData.map(r =>r.hit_rate_pct),
+ borderColor: rollingColors[idx % rollingColors.length],
+ backgroundColor: 'transparent',
+ borderWidth: 2,
+ tension: 0.3,
+ pointRadius: 0,
+ });
+ idx++;
+ }
+ // Add random baseline
+ rollingDatasets.push({
+ label: 'Random Baseline',
+ data: rollingLabels.map(() =>meta.random_hit_rate_pct),
+ borderColor: 'rgba(200,150,12,0.5)',
+ borderDash: [6,4],
+ borderWidth: 2,
+ pointRadius: 0,
+ fill: false,
+ });
+ new Chart(document.getElementById('btRollingChart').getContext('2d'), {
+ type: 'line',
+ data: { labels: rollingLabels, datasets: rollingDatasets },
+ options: {
+ responsive: true,
+ plugins: {
+ legend: { labels: { color: '#4a5568', font: { size: 10 } }, position: 'top' },
+ },
+ scales: {
+ x: { ticks: { color: '#6b7280', font: { size: 9 }, maxTicksLimit: 15, maxRotation: 45 }, grid: { color: 'rgba(0,0,0,0.04)' } },
+ y: { ticks: { color: '#6b7280' }, grid: { color: 'rgba(0,0,0,0.06)' }, title: { display: true, text: 'Hit Rate %', color: '#6b7280' } }
+ }
+ }
+ });
+
+ // ── Notable Multi-Hit Draws Table ──
+ const ntbl = document.getElementById('btNotableTable');
+ ntbl.querySelector('thead').innerHTML = `<tr style="border-bottom:2px solid rgba(0,0,0,0.1);">
+ ${['Date','Drawing','Actual Pair','# Signals Hit','Which Signals Hit'].map(h =>`<th style="padding:10px 8px;text-align:left;color:var(--accent);font-size:12px;">${h}</th>`).join('')}
+ </tr>`;
+ const notableRows = notable.slice(0, 30);
+ ntbl.querySelector('tbody').innerHTML = notableRows.length >0
+ ? notableRows.map(d =>{
+ const hitSigs = Object.entries(d.signal_hits||{}).filter(([k,v]) =>v).map(([k]) =>(signals[k]||{}).name || k);
+ return `<tr style="border-bottom:1px solid rgba(0,0,0,0.06);">
+ <td style="padding:8px;">${d.date}</td>
+ <td style="padding:8px;">${d.drawing}</td>
+ <td style="padding:8px;font-weight:700;color:var(--accent);font-size:16px;">${(d.actual||'').split('').join('-')}</td>
+ <td style="padding:8px;text-align:center;font-weight:700;color:var(--green);">${d.signals_that_hit}</td>
+ <td style="padding:8px;font-size:12px;">${hitSigs.join(', ')}</td>
+ </tr>`;
+ }).join('')
+ : '<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--muted);">No draws with 3+ signals agreeing on a hit.</td></tr>';
+
+ // ── Best Signal's Top Hit Pairs ──
+ const bestKey = best.key;
+ const bestSigData = signals[bestKey] || {};
+ const topPairs = bestSigData.top_hit_pairs || [];
+ let pairsHtml = `<div style="margin-bottom:12px;font-size:14px;"><b>${bestSigData.name}</b>— hit ${bestSigData.hits} times (${bestSigData.hit_rate_pct}%, ${bestSigData.lift}x lift)</div>`;
+ if (topPairs.length >0) {
+ pairsHtml += '<div style="display:flex;flex-wrap:wrap;gap:10px;">';
+ topPairs.forEach(p =>{
+ pairsHtml += `<div style="background:rgba(0,166,81,0.08);border:1px solid rgba(0,166,81,0.2);border-radius:10px;padding:10px 16px;text-align:center;">
+ <div style="font-size:22px;font-weight:700;color:var(--accent);">${(p.pair||'').split('').join('-')}</div>
+ <div style="font-size:11px;color:var(--muted);">Hit ${p.times_hit}x</div>
+ </div>`;
+ });
+ pairsHtml += '</div>';
+ } else {
+ pairsHtml += '<div style="color:var(--muted);">No hit pair data available.</div>';
+ }
+ document.getElementById('btBestSignalPairs').innerHTML = pairsHtml;
+
+ // ── Recent Prediction Log ──
+ const recentDraws = drawLog.slice(0, 30);
+ let logHtml = '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
+ logHtml += `<tr style="border-bottom:1px solid rgba(0,0,0,0.08);">
+ <th style="padding:6px;text-align:left;color:var(--accent);">Date</th>
+ <th style="padding:6px;text-align:left;color:var(--accent);">Drw</th>
+ <th style="padding:6px;text-align:left;color:var(--accent);">Pair</th>
+ <th style="padding:6px;text-align:center;color:var(--accent);"># Hits</th>
+ </tr>`;
+ recentDraws.forEach(d =>{
+ const hitCount = d.signals_that_hit || 0;
+ const rowColor = hitCount >= 3 ? 'rgba(0,166,81,0.12)' : hitCount >= 1 ? 'rgba(200,150,12,0.05)' : 'transparent';
+ logHtml += `<tr style="background:${rowColor};border-bottom:1px solid rgba(0,0,0,0.04);">
+ <td style="padding:5px 6px;">${d.date}</td>
+ <td style="padding:5px 6px;">${d.drawing}</td>
+ <td style="padding:5px 6px;font-weight:700;">${(d.actual||'').split('').join('-')}</td>
+ <td style="padding:5px 6px;text-align:center;font-weight:700;color:${hitCount >= 3 ? 'var(--green)' : hitCount >= 1 ? 'var(--accent)' : 'var(--muted)'};">${hitCount}/${comparison.length}</td>
+ </tr>`;
+ });
+ logHtml += '</table>';
+ document.getElementById('btRecentLog').innerHTML = logHtml;
+}
+
+// =========================================================================
+// SCRATCH-OFF 200X
+// =========================================================================
+function renderScratchOff() {
+ const s = DATA.scratchoff_200x;
+ if (!s) return;
+
+ /* ---------- helpers ---------- */
+ const fmt = n =>Number(n).toLocaleString();
+ const fmtD = n =>'$' + Number(n).toLocaleString();
+ const pct = n =>Number(n).toFixed(1) + '%';
+
+ /* ---------- KPI cards ---------- */
+ const kpis = [
+ { icon:'', label:'Est. Total Tickets', value: fmt(s.est_total_tickets) },
+ { icon:'', label:'Est. Sold', value: fmt(s.est_tickets_sold), sub: pct(s.pct_sold) + ' sold' },
+ { icon:'', label:'Est. Remaining', value: fmt(s.est_tickets_remaining) },
+ { icon:'', label:'Original Prize Pool', value: fmtD(s.original_prize_pool) },
+ { icon:'', label:'Remaining Prize Pool', value: fmtD(s.remaining_prize_pool) },
+ { icon:'', label:'Current Expected Value', value: fmtD(s.current_ev), sub: 'per $20 ticket' },
+ { icon:'', label:'Current ROI', value: pct(s.current_roi_pct), sub: s.current_roi_pct >= 0 ? ' Positive' : ' Negative' },
+ { icon:'', label:'Break-Even Probability', value: pct(s.breakeven_prob_pct) },
+ { icon:'', label:'Profit Probability (>$20)', value: pct(s.profit_prob_pct) },
+ { icon:'', label:'Any-Win Odds', value: '1-in-' + s.original_any_win_odds.toFixed(2) },
+ ];
+ let kpiHtml = '';
+ kpis.forEach(k =>{
+ const roiColor = k.label.includes('ROI') ? (s.current_roi_pct >= 0 ? 'var(--green)' : '#dc3545') : 'var(--accent)';
+ kpiHtml += `<div class="card" style="text-align:center;padding:18px;">
+ <div style="font-size:26px;margin-bottom:4px;">${k.icon}</div>
+ <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">${k.label}</div>
+ <div style="font-size:22px;font-weight:800;color:${roiColor};">${k.value}</div>
+ ${k.sub ? '<div style="font-size:11px;color:var(--muted);margin-top:3px;">'+k.sub+'</div>' : ''}
+ </div>`;
+ });
+ document.getElementById('soKpis').innerHTML = kpiHtml;
+
+ /* ---------- Verdict ---------- */
+ const verdictColor = s.verdict.startsWith('') ? 'var(--green)' : s.verdict.startsWith('') ? '#dc3545' : 'var(--yellow)';
+ const trendIcon = s.ev_trend.includes('IMPROVING') ? '' : s.ev_trend.includes('DECLINING') ? '' : '';
+ document.getElementById('soVerdict').innerHTML = `
+ <h3 style="font-size:18px;margin-bottom:14px;">Analysis Verdict</h3>
+ <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+ <div style="background:rgba(0,51,102,0.03);border-radius:12px;padding:20px;text-align:center;">
+ <div style="font-size:15px;color:var(--muted);margin-bottom:8px;">Overall Verdict</div>
+ <div style="font-size:18px;font-weight:700;color:${verdictColor};">${s.verdict}</div>
+ </div>
+ <div style="background:rgba(0,51,102,0.03);border-radius:12px;padding:20px;text-align:center;">
+ <div style="font-size:15px;color:var(--muted);margin-bottom:8px;">EV Trend</div>
+ <div style="font-size:18px;font-weight:700;">${s.ev_trend}</div>
+ </div>
+ </div>
+ <div style="margin-top:16px;padding:14px;background:rgba(0,0,0,0.02);border-radius:10px;font-size:14px;line-height:1.7;">
+ <b>What this means:</b> You pay <b>$20</b> per ticket, but the average return is <b>${fmtD(s.current_ev)}</b>.
+ That's a loss of <b>${fmtD(20 - s.current_ev)}</b> per ticket on average (${pct(Math.abs(s.current_roi_pct))} ROI).
+ ${s.current_ev >s.original_ev
+ ? 'However, the EV has <b style="color:var(--green);">improved</b> since launch ($' + s.original_ev.toFixed(2) + ' → $' + s.current_ev.toFixed(2) + '), meaning more high-value prizes remain relative to tickets.'
+ : 'The EV has <b style="color:#dc3545;">declined</b> since launch ($' + s.original_ev.toFixed(2) + ' → $' + s.current_ev.toFixed(2) + '), meaning big prizes are getting claimed faster.'}
+ About <b>${pct(s.breakeven_prob_pct)}</b> of tickets will return at least $20, and only <b>${pct(s.profit_prob_pct)}</b> will actually profit.
+ </div>`;
+
+ /* ---------- EV Chart ---------- */
+ const evCtx = document.getElementById('soEvChart').getContext('2d');
+ new Chart(evCtx, {
+ type: 'bar',
+ data: {
+ labels: ['Ticket Cost', 'Original EV', 'Current EV'],
+ datasets: [{
+ data: [20, s.original_ev, s.current_ev],
+ backgroundColor: ['rgba(255,107,107,0.7)', 'rgba(0,51,102,0.65)', 'rgba(0,166,81,0.65)'],
+ borderColor: ['#dc3545', '#003366', '#00a651'],
+ borderWidth: 2,
+ borderRadius: 8
+ }]
+ },
+ options: {
+ responsive: true,
+ plugins: {
+ legend: { display: false },
+ tooltip: { callbacks: { label: ctx =>'$' + ctx.parsed.y.toFixed(2) } }
+ },
+ scales: {
+ y: {
+ beginAtZero: true,
+ title: { display: true, text: 'Dollar Value', color: '#999' },
+ ticks: { callback: v =>'$' + v, color: '#999' },
+ grid: { color: 'rgba(0,0,0,0.06)' }
+ },
+ x: { ticks: { color: '#4a5568' }, grid: { display: false } }
+ }
+ }
+ });
+
+ /* ---------- Prize Pool Donut ---------- */
+ const poolCtx = document.getElementById('soPrizePoolChart').getContext('2d');
+ new Chart(poolCtx, {
+ type: 'doughnut',
+ data: {
+ labels: ['Claimed', 'Remaining'],
+ datasets: [{
+ data: [s.claimed_prize_pool, s.remaining_prize_pool],
+ backgroundColor: ['rgba(255,107,107,0.7)', 'rgba(0,166,81,0.65)'],
+ borderColor: ['#dc3545', '#00a651'],
+ borderWidth: 2
+ }]
+ },
+ options: {
+ responsive: true,
+ cutout: '55%',
+ plugins: {
+ legend: { position: 'bottom', labels: { color: '#4a5568', padding: 16 } },
+ tooltip: { callbacks: { label: ctx =>ctx.label + ': $' + Number(ctx.parsed).toLocaleString() } }
+ }
+ }
+ });
+
+ /* ---------- Prize Tier Table ---------- */
+ const tiers = s.tiers || [];
+ let thead = `<tr style="border-bottom:2px solid var(--border);">
+ <th style="padding:8px;text-align:left;color:var(--accent);">Prize</th>
+ <th style="padding:8px;text-align:center;color:var(--accent);">Original</th>
+ <th style="padding:8px;text-align:center;color:var(--accent);">Remaining</th>
+ <th style="padding:8px;text-align:center;color:var(--accent);">Claimed</th>
+ <th style="padding:8px;text-align:center;color:var(--accent);">% Claimed</th>
+ <th style="padding:8px;text-align:center;color:var(--accent);">Original Odds</th>
+ <th style="padding:8px;text-align:center;color:var(--accent);">Current Odds</th>
+ <th style="padding:8px;text-align:center;color:var(--accent);">Odds Δ</th>
+ <th style="padding:8px;text-align:right;color:var(--accent);">Remaining $</th>
+ </tr>`;
+ let tbody = '';
+ tiers.forEach(t =>{
+ const impColor = t.odds_improved ? 'var(--green)' : t.improvement_pct < 0 ? '#dc3545' : 'var(--muted)';
+ const impSign = t.improvement_pct >0 ? '+' : '';
+ const barPct = t.pct_claimed;
+ tbody += `<tr style="border-bottom:1px solid var(--border);">
+ <td style="padding:8px;font-weight:700;color:var(--yellow);">${fmtD(t.prize)}</td>
+ <td style="padding:8px;text-align:center;">${fmt(t.original)}</td>
+ <td style="padding:8px;text-align:center;font-weight:700;color:var(--green);">${fmt(t.remaining)}</td>
+ <td style="padding:8px;text-align:center;color:#dc3545;">${fmt(t.claimed)}</td>
+ <td style="padding:8px;text-align:center;">
+ <div style="background:rgba(0,0,0,0.06);border-radius:4px;height:18px;width:100%;position:relative;overflow:hidden;">
+ <div style="background:rgba(255,107,107,0.5);height:100%;width:${barPct}%;border-radius:4px;"></div>
+ <span style="position:absolute;top:0;left:50%;transform:translateX(-50%);font-size:11px;font-weight:700;line-height:18px;">${pct(barPct)}</span>
+ </div>
+ </td>
+ <td style="padding:8px;text-align:center;color:var(--muted);font-size:12px;">1-in-${fmt(t.original_odds)}</td>
+ <td style="padding:8px;text-align:center;font-size:12px;font-weight:700;">1-in-${fmt(t.current_odds)}</td>
+ <td style="padding:8px;text-align:center;font-weight:700;color:${impColor};">${impSign}${t.improvement_pct.toFixed(1)}%</td>
+ <td style="padding:8px;text-align:right;font-weight:600;">${fmtD(t.remaining_value)}</td>
+ </tr>`;
+ });
+ const tbl = document.getElementById('soTierTable');
+ tbl.querySelector('thead').innerHTML = thead;
+ tbl.querySelector('tbody').innerHTML = tbody;
+
+ /* ---------- Odds Improvement Chart ---------- */
+ const improvedTiers = tiers.filter(t =>t.prize >= 1000);
+ const oddsCtx = document.getElementById('soOddsChart').getContext('2d');
+ new Chart(oddsCtx, {
+ type: 'bar',
+ data: {
+ labels: improvedTiers.map(t =>fmtD(t.prize)),
+ datasets: [{
+ label: 'Odds Change %',
+ data: improvedTiers.map(t =>t.improvement_pct),
+ backgroundColor: improvedTiers.map(t =>t.improvement_pct >= 0 ? 'rgba(0,166,81,0.65)' : 'rgba(255,107,107,0.7)'),
+ borderColor: improvedTiers.map(t =>t.improvement_pct >= 0 ? '#00a651' : '#dc3545'),
+ borderWidth: 2,
+ borderRadius: 6
+ }]
+ },
+ options: {
+ indexAxis: 'y',
+ responsive: true,
+ plugins: {
+ legend: { display: false },
+ tooltip: { callbacks: { label: ctx =>(ctx.parsed.x >0 ? '+' : '') + ctx.parsed.x.toFixed(1) + '% (positive = better odds for you)' } }
+ },
+ scales: {
+ x: {
+ title: { display: true, text: 'Improvement %', color: '#999' },
+ ticks: { callback: v =>(v>0?'+':'') + v + '%', color: '#999' },
+ grid: { color: 'rgba(0,0,0,0.06)' }
+ },
+ y: { ticks: { color: '#4a5568' }, grid: { display: false } }
+ }
+ }
+ });
+
+ /* ---------- Value Distribution Donut ---------- */
+ const topN = 8; // show top 8 tiers
+ const sortedTiers = [...tiers].sort((a,b) =>b.remaining_value - a.remaining_value).slice(0, topN);
+ const palette = ['#003366','#00a651','#c8960c','#dc3545','#4da3e8','#0072ce','#e8c84a','#28a745'];
+ const distCtx = document.getElementById('soValueDistChart').getContext('2d');
+ new Chart(distCtx, {
+ type: 'doughnut',
+ data: {
+ labels: sortedTiers.map(t =>fmtD(t.prize) + ' tier'),
+ datasets: [{
+ data: sortedTiers.map(t =>t.remaining_value),
+ backgroundColor: palette.map(c =>c + 'bb'),
+ borderColor: palette,
+ borderWidth: 2
+ }]
+ },
+ options: {
+ responsive: true,
+ cutout: '40%',
+ plugins: {
+ legend: { position: 'bottom', labels: { color: '#4a5568', padding: 10, font: { size: 11 } } },
+ tooltip: { callbacks: { label: ctx =>ctx.label + ': $' + Number(ctx.parsed).toLocaleString() + ' (' + ((ctx.parsed / s.remaining_prize_pool) * 100).toFixed(1) + '%)' } }
+ }
+ }
+ });
+
+ /* ---------- Top Prizes Spotlight ---------- */
+ const topPrizes = s.top_prizes_remaining || [];
+ let topHtml = '<h3 style="font-size:17px;color:var(--green);margin-bottom:14px;">Top Prizes Still Available</h3>';
+ topHtml += '<div style="display:flex;gap:20px;flex-wrap:wrap;">';
+ topPrizes.forEach(tp =>{
+ topHtml += `<div style="flex:1;min-width:200px;background:rgba(0,166,81,0.08);border:1px solid rgba(0,166,81,0.25);border-radius:14px;padding:20px;text-align:center;">
+ <div style="font-size:32px;font-weight:900;color:var(--green);">${fmtD(tp.prize)}</div>
+ <div style="font-size:14px;color:var(--muted);margin-top:6px;"><b style="color:var(--accent);font-size:20px;">${tp.remaining}</b> remaining</div>
+ </div>`;
+ });
+ topHtml += '</div>';
+ // find the top-prize tier details
+ const topTier = tiers.find(t =>t.prize === (topPrizes[0] || {}).prize);
+ if (topTier) {
+ topHtml += `<div style="margin-top:14px;padding:12px;background:rgba(0,0,0,0.02);border-radius:8px;font-size:13px;color:var(--muted);line-height:1.7;">
+ The <b style="color:var(--green);">${fmtD(topTier.prize)}</b> grand prize started with <b>${topTier.original}</b> winners
+ and <b style="color:var(--green);">${topTier.remaining}</b> remain — that's <b>${pct(100 - topTier.pct_claimed)}</b> still unclaimed.
+ ${topTier.odds_improved
+ ? 'Your odds have <b style="color:var(--green);">improved by ' + topTier.improvement_pct.toFixed(1) + '%</b> since launch (from 1-in-' + fmt(topTier.original_odds) + ' to 1-in-' + fmt(topTier.current_odds) + ').'
+ : 'Odds have shifted to 1-in-' + fmt(topTier.current_odds) + ' from the original 1-in-' + fmt(topTier.original_odds) + '.'}
+ </div>`;
+ }
+ document.getElementById('soTopPrizes').innerHTML = topHtml;
+
+ /* ---------- Strategy Card ---------- */
+ const evDiff = s.current_ev - s.original_ev;
+ const evDiffSign = evDiff >= 0 ? '+' : '';
+ const evDiffColor = evDiff >= 0 ? 'var(--green)' : '#dc3545';
+
+ // Calculate how many tickets for 50% chance of any win
+ const pWin = 1 / s.original_any_win_odds;
+ const ticketsFor50 = Math.ceil(Math.log(0.5) / Math.log(1 - pWin));
+
+ // Prizes above ticket cost
+ const profitTiers = tiers.filter(t =>t.prize >20);
+ const totalProfitPrizes = profitTiers.reduce((acc, t) =>acc + t.remaining, 0);
+
+ let stratHtml = `<h3 style="font-size:17px;margin-bottom:16px;">Strategy Breakdown</h3>
+ <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;">
+ <div style="background:rgba(0,51,102,0.04);border:1px solid rgba(0,51,102,0.15);border-radius:12px;padding:16px;">
+ <div style="font-size:14px;font-weight:700;color:var(--purple);margin-bottom:8px;">EV Movement</div>
+ <div style="font-size:13px;line-height:1.7;">
+ Launch EV: <b>${fmtD(s.original_ev)}</b>→ Current: <b style="color:${evDiffColor};">${fmtD(s.current_ev)}</b><br>
+ Change: <span style="color:${evDiffColor};font-weight:700;">${evDiffSign}$${Math.abs(evDiff).toFixed(2)}</span> per ticket
+ </div>
+ </div>
+ <div style="background:rgba(0,166,81,0.05);border:1px solid rgba(0,166,81,0.2);border-radius:12px;padding:16px;">
+ <div style="font-size:14px;font-weight:700;color:var(--green);margin-bottom:8px;">Win Probability</div>
+ <div style="font-size:13px;line-height:1.7;">
+ Any win: <b>1-in-${s.original_any_win_odds.toFixed(2)}</b> (${pct(100/s.original_any_win_odds)} per ticket)<br>
+ ~<b>${ticketsFor50}</b> tickets for 50% chance of any win<br>
+ Profit (>$20): <b>${pct(s.profit_prob_pct)}</b> per ticket
+ </div>
+ </div>
+ <div style="background:rgba(200,150,12,0.05);border:1px solid rgba(200,150,12,0.2);border-radius:12px;padding:16px;">
+ <div style="font-size:14px;font-weight:700;color:var(--yellow);margin-bottom:8px;">Ticket Inventory</div>
+ <div style="font-size:13px;line-height:1.7;">
+ ~<b>${pct(s.pct_sold)}</b> of tickets sold<br>
+ ~<b>${fmt(s.est_tickets_remaining)}</b> still in circulation<br>
+ <b>${fmt(totalProfitPrizes)}</b> profit-level prizes remain
+ </div>
+ </div>
+ <div style="background:rgba(220,53,69,0.04);border:1px solid rgba(255,107,107,0.2);border-radius:12px;padding:16px;">
+ <div style="font-size:14px;font-weight:700;color:#dc3545;margin-bottom:8px;">Reality Check</div>
+ <div style="font-size:13px;line-height:1.7;">
+ Average loss per ticket: <b style="color:#dc3545;">${fmtD(20 - s.current_ev)}</b><br>
+ For every $100 spent: expect back ~<b>${fmtD(s.current_ev * 5)}</b><br>
+ House edge: <b>${pct(Math.abs(s.current_roi_pct))}</b>
+ </div>
+ </div>
+ </div>
+
+ <div style="margin-top:18px;padding:16px;background:linear-gradient(135deg,rgba(0,51,102,0.04),rgba(0,166,81,0.05));border:1px solid rgba(0,51,102,0.15);border-radius:12px;">
+ <div style="font-size:15px;font-weight:700;margin-bottom:8px;">Bottom Line</div>
+ <div style="font-size:14px;line-height:1.8;">
+ ${s.current_ev >s.original_ev
+ ? ' <b style="color:var(--green);">Slightly better timing than launch.</b> The EV has improved because more small prizes have been claimed relative to big prizes. If you\'re going to play this game anyway, <b>now is slightly better than average</b>.'
+ : ' <b style="color:var(--yellow);">Timing is neutral-to-worse.</b> The big prizes have been claimed proportionally faster than small ones. No particular advantage over buying at launch.'}
+ <br>
+ ${s.profit_prob_pct >20
+ ? ' Decent profit probability at ' + pct(s.profit_prob_pct) + '.'
+ : s.profit_prob_pct >10
+ ? ' Moderate profit probability at ' + pct(s.profit_prob_pct) + '. Most tickets will return less than $20.'
+ : ' Low profit probability at ' + pct(s.profit_prob_pct) + '. The vast majority of tickets lose money.'}
+ <br>
+ <b>If playing:</b> Set a strict budget. One or two tickets for fun is reasonable — don't chase losses.
+ </div>
+ </div>`;
+ document.getElementById('soStrategy').innerHTML = stratHtml;
+}
+</script>
+</body>
+</html>

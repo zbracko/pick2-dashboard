@@ -128,6 +128,7 @@
  <div class="tab" data-tab="finalpicks">Final Picks</div>
  <div class="tab" data-tab="aimeta">AI Analysis</div>
  <div class="tab" data-tab="backtest">Historical Validation</div>
+ <div class="tab" data-tab="advancedml">Advanced ML</div>
  <div class="tab" data-tab="scratchoff">Scratch-Off 200X</div>
 </div>
 
@@ -900,6 +901,75 @@
  </div>
  </div>
 
+ <!-- ============ ADVANCED ML ============ -->
+ <div class="section" id="sec-advancedml">
+
+ <div class="card" style="margin-bottom:24px;background:linear-gradient(135deg,#eaf0f7,#dce6f0);color:#1a2332;border-color:var(--accent);">
+ <h3 style="font-size:20px;text-align:center;margin-bottom:6px;">Advanced ML Backtest — PyTorch Neural Networks</h3>
+ <div style="text-align:center;font-size:13px;color:var(--muted);">
+ Walk-forward backtesting of <b>6 models</b> over 800 draws: Temporal CNN, Transformer encoder,
+ Gradient Boosting, Statistical composite, Meta-ensemble, and Random baseline.<br>
+ Models were retrained every 200 draws using <b>only prior data</b> — no future-leaking.
+ </div>
+ </div>
+
+ <!-- KPI Row -->
+ <div id="mlKpis" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:16px;margin-bottom:24px;"></div>
+
+ <!-- Model Comparison Bar Chart -->
+ <div class="card" style="margin-bottom:24px;">
+ <h3>Model Hit Rate Comparison vs Random Baseline</h3>
+ <canvas id="mlCompChart" height="100"></canvas>
+ </div>
+
+ <!-- Lift + Confidence Charts -->
+ <div class="grid2" style="margin-bottom:24px;">
+ <div class="card"><h3>Lift Over Random (1.0x = no edge)</h3><canvas id="mlLiftChart"></canvas></div>
+ <div class="card"><h3>Confidence: Hit vs Miss</h3><canvas id="mlConfChart"></canvas></div>
+ </div>
+
+ <!-- Rolling Performance Chart -->
+ <div class="card" style="margin-bottom:24px;">
+ <h3>Rolling Hit Rate Over Time (100-draw window)</h3>
+ <canvas id="mlRollingChart" height="120"></canvas>
+ </div>
+
+ <!-- Model Detail Table -->
+ <div class="card" style="margin-bottom:24px;">
+ <h3>Per-Model Detailed Results</h3>
+ <div style="overflow-x:auto;">
+ <table id="mlModelTable" style="width:100%;border-collapse:collapse;font-size:13px;margin-top:12px;">
+ <thead></thead>
+ <tbody></tbody>
+ </table>
+ </div>
+ </div>
+
+ <!-- Head-to-Head Matrix -->
+ <div class="card" style="margin-bottom:24px;">
+ <h3>Head-to-Head — Draw-by-Draw Wins</h3>
+ <div id="mlH2H" style="overflow-x:auto;"></div>
+ </div>
+
+ <!-- Current Predictions -->
+ <div class="card" style="margin-bottom:24px;">
+ <h3>Current Top-10 Predictions by Model</h3>
+ <div id="mlPredictions" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;"></div>
+ </div>
+
+ <!-- Multi-Model Agreement -->
+ <div class="card" style="margin-bottom:24px;border-color:rgba(0,166,81,0.2);background:linear-gradient(135deg,rgba(0,166,81,0.03),rgba(0,166,81,0.01));">
+ <h3>Multi-Model Agreement — Pairs Flagged by 3+ Models</h3>
+ <div id="mlAgreement"></div>
+ </div>
+
+ <div class="disclaimer" style="margin-top:20px;">
+ <b>VERDICT:</b> Even with cutting-edge deep learning (CNN + Transformer) and gradient boosting,
+ <b>no model achieved statistical significance</b> (p &lt; 0.05). The lottery is truly random —
+ this is the honest, transparent result. This analysis validates the integrity of the draw process.
+ </div>
+ </div>
+
  <!-- ============ SCRATCH-OFF 200X ============ -->
  <div class="section" id="sec-scratchoff">
 
@@ -994,6 +1064,7 @@ function render() {
  renderFinalPicks();
  renderAiMeta();
  renderHistoricalValidation();
+ renderAdvancedML();
  renderScratchOff();
 }
 
@@ -2919,6 +2990,277 @@ function renderHistoricalValidation() {
  });
  logHtml += '</table>';
  document.getElementById('btRecentLog').innerHTML = logHtml;
+}
+
+// =========================================================================
+// ADVANCED ML
+// =========================================================================
+function renderAdvancedML() {
+ const ml = DATA.advanced_ml;
+ if (!ml || ml.error) {
+ document.getElementById('mlKpis').innerHTML = '<div class="card" style="grid-column:1/-1;text-align:center;color:var(--muted);">Advanced ML data not available. Run advanced_ml_engine.py first.</div>';
+ return;
+ }
+
+ const meta = ml.meta || {};
+ const models = ml.models || {};
+ const rolling = ml.rolling_performance || {};
+ const h2h = ml.head_to_head || {};
+ const best = ml.best_model || {};
+ const preds = ml.current_predictions || {};
+ const agree = ml.multi_model_agreement || [];
+
+ const modelOrder = ['gbm','cnn','transformer','statistical','meta_ensemble','random'];
+ const modelNames = { gbm:'Gradient Boosting', cnn:'Temporal CNN', transformer:'Transformer', statistical:'Statistical', meta_ensemble:'Meta-Ensemble', random:'Random Baseline' };
+ const modelColors = { gbm:'rgba(0,166,81,1)', cnn:'rgba(0,51,102,1)', transformer:'rgba(200,150,12,1)', statistical:'rgba(214,48,49,1)', meta_ensemble:'rgba(9,132,227,1)', random:'rgba(150,150,150,0.7)' };
+
+ // ── KPIs ──
+ const kpiData = [
+ { label: 'Draws Tested', value: meta.test_draws },
+ { label: 'Training Rounds', value: meta.train_rounds },
+ { label: 'Best Model', value: modelNames[best.name] || best.name },
+ { label: 'Best Hit Rate', value: best.hit_rate_pct + '%' },
+ { label: 'Best Lift', value: best.lift_vs_random + 'x' },
+ { label: 'p-value', value: best.p_value < 0.001 ? '<0.001' : best.p_value.toFixed(4) },
+ { label: 'Significant?', value: best.significant ? 'YES' : 'NO' },
+ { label: 'Models Agreeing', value: agree.length + ' pairs (3+ models)' },
+ ];
+ document.getElementById('mlKpis').innerHTML = kpiData.map(k => `
+ <div class="card" style="text-align:center;padding:16px;">
+ <div style="font-size:22px;font-weight:700;color:var(--accent);margin:4px 0;">${k.value}</div>
+ <div style="font-size:12px;color:var(--muted);">${k.label}</div>
+ </div>
+ `).join('');
+
+ // ── Hit Rate Comparison Bar Chart ──
+ const chartModels = modelOrder.filter(m => models[m]);
+ new Chart(document.getElementById('mlCompChart').getContext('2d'), {
+ type: 'bar',
+ data: {
+ labels: chartModels.map(m => modelNames[m]),
+ datasets: [
+ {
+ label: 'Hit Rate %',
+ data: chartModels.map(m => models[m].hit_rate_pct),
+ backgroundColor: chartModels.map(m => {
+  const c = modelColors[m]; return c.replace(',1)', ',0.6)');
+ }),
+ borderColor: chartModels.map(m => modelColors[m]),
+ borderWidth: 1,
+ },
+ {
+ label: 'Random Baseline %',
+ data: chartModels.map(() => meta.random_baseline_pct),
+ type: 'line',
+ borderColor: 'rgba(200,150,12,0.8)',
+ borderDash: [6,4],
+ borderWidth: 2,
+ pointRadius: 0,
+ fill: false,
+ }
+ ]
+ },
+ options: {
+ responsive: true,
+ plugins: {
+ legend: { labels: { color: '#4a5568', font: { size: 11 } } },
+ tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y + '%' } }
+ },
+ scales: {
+ x: { ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.06)' } },
+ y: { ticks: { color: '#6b7280' }, grid: { color: 'rgba(0,0,0,0.06)' }, title: { display: true, text: 'Hit Rate %', color: '#6b7280' } }
+ }
+ }
+ });
+
+ // ── Lift Chart (horizontal bar) ──
+ const liftModels = modelOrder.filter(m => models[m] && m !== 'random');
+ new Chart(document.getElementById('mlLiftChart').getContext('2d'), {
+ type: 'bar',
+ data: {
+ labels: liftModels.map(m => modelNames[m]),
+ datasets: [{
+ label: 'Lift (x)',
+ data: liftModels.map(m => models[m].lift_vs_random),
+ backgroundColor: liftModels.map(m => {
+  const lift = models[m].lift_vs_random;
+  if (lift >= 1.05) return 'rgba(0,166,81,0.8)';
+  if (lift >= 0.95) return 'rgba(200,150,12,0.6)';
+  return 'rgba(214,48,49,0.5)';
+ }),
+ borderWidth: 1,
+ }]
+ },
+ options: {
+ indexAxis: 'y',
+ responsive: true,
+ plugins: { legend: { display: false } },
+ scales: {
+ x: { ticks: { color: '#6b7280' }, grid: { color: 'rgba(0,0,0,0.06)' }, title: { display: true, text: 'Lift over Random', color: '#6b7280' },
+  suggestedMin: 0.7, suggestedMax: 1.2 },
+ y: { ticks: { color: '#4a5568', font: { size: 11 } }, grid: { display: false } }
+ }
+ }
+ });
+
+ // ── Confidence Chart (grouped bar: avg conf when hit vs miss) ──
+ const confModels = modelOrder.filter(m => models[m] && m !== 'random');
+ new Chart(document.getElementById('mlConfChart').getContext('2d'), {
+ type: 'bar',
+ data: {
+ labels: confModels.map(m => modelNames[m]),
+ datasets: [
+ {
+ label: 'Avg Confidence (Hit)',
+ data: confModels.map(m => models[m].avg_confidence_when_hit),
+ backgroundColor: 'rgba(0,166,81,0.6)',
+ borderColor: 'rgba(0,166,81,1)',
+ borderWidth: 1,
+ },
+ {
+ label: 'Avg Confidence (Miss)',
+ data: confModels.map(m => models[m].avg_confidence_when_miss),
+ backgroundColor: 'rgba(214,48,49,0.4)',
+ borderColor: 'rgba(214,48,49,1)',
+ borderWidth: 1,
+ }
+ ]
+ },
+ options: {
+ responsive: true,
+ plugins: { legend: { labels: { color: '#4a5568', font: { size: 11 } } } },
+ scales: {
+ x: { ticks: { color: '#6b7280', font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.06)' } },
+ y: { ticks: { color: '#6b7280' }, grid: { color: 'rgba(0,0,0,0.06)' }, title: { display: true, text: 'Avg Confidence Score', color: '#6b7280' } }
+ }
+ }
+ });
+
+ // ── Rolling Performance Line Chart ──
+ const rollingColors = { gbm:'rgba(0,166,81,1)', cnn:'rgba(0,51,102,1)', transformer:'rgba(200,150,12,1)', statistical:'rgba(214,48,49,1)', meta_ensemble:'rgba(9,132,227,1)', random:'rgba(150,150,150,0.5)' };
+ const rollingDatasets = [];
+ let maxLen = 0;
+ for (const m of modelOrder) {
+ const rData = rolling[m];
+ if (!rData) continue;
+ if (rData.length > maxLen) maxLen = rData.length;
+ rollingDatasets.push({
+ label: modelNames[m],
+ data: rData,
+ borderColor: rollingColors[m] || 'rgba(100,100,100,0.5)',
+ backgroundColor: 'transparent',
+ borderWidth: m === 'random' ? 1.5 : 2,
+ borderDash: m === 'random' ? [6,4] : [],
+ tension: 0.3,
+ pointRadius: 0,
+ });
+ }
+ const rollingLabels = Array.from({length: maxLen}, (_, i) => 'W' + (i+1));
+ new Chart(document.getElementById('mlRollingChart').getContext('2d'), {
+ type: 'line',
+ data: { labels: rollingLabels, datasets: rollingDatasets },
+ options: {
+ responsive: true,
+ plugins: { legend: { labels: { color: '#4a5568', font: { size: 10 } }, position: 'top' } },
+ scales: {
+ x: { ticks: { color: '#6b7280', font: { size: 9 }, maxTicksLimit: 20 }, grid: { color: 'rgba(0,0,0,0.04)' }, title: { display: true, text: '100-Draw Window', color: '#6b7280' } },
+ y: { ticks: { color: '#6b7280' }, grid: { color: 'rgba(0,0,0,0.06)' }, title: { display: true, text: 'Hits per 100 Draws', color: '#6b7280' } }
+ }
+ }
+ });
+
+ // ── Model Detail Table ──
+ const tbl = document.getElementById('mlModelTable');
+ tbl.querySelector('thead').innerHTML = `<tr style="border-bottom:2px solid rgba(0,0,0,0.1);">
+ ${['Model','Hits','Total','Hit Rate','Lift','p-value','Significant?','Avg Position','Best 100','Worst 100','Conf (Hit)','Conf (Miss)'].map(h =>
+ `<th style="padding:10px 8px;text-align:left;color:var(--accent);font-size:12px;">${h}</th>`).join('')}
+ </tr>`;
+ const sortedModels = [...modelOrder.filter(m => models[m])].sort((a,b) => models[b].lift_vs_random - models[a].lift_vs_random);
+ tbl.querySelector('tbody').innerHTML = sortedModels.map(m => {
+ const s = models[m];
+ const liftColor = s.lift_vs_random >= 1 ? 'var(--green)' : s.lift_vs_random >= 0.9 ? 'var(--accent)' : 'var(--red)';
+ const sigBadge = s.significant ? '<span class="badge badge-hot">YES</span>' : '<span class="badge badge-cold">NO</span>';
+ return `<tr style="border-bottom:1px solid rgba(0,0,0,0.06);${m === best.name ? 'background:rgba(0,166,81,0.05);' : ''}">
+ <td style="padding:8px;font-weight:600;">${modelNames[m]}</td>
+ <td style="padding:8px;">${s.hits}</td>
+ <td style="padding:8px;">${s.total}</td>
+ <td style="padding:8px;font-weight:700;color:${liftColor};">${s.hit_rate_pct}%</td>
+ <td style="padding:8px;font-weight:700;color:${liftColor};">${s.lift_vs_random}x</td>
+ <td style="padding:8px;color:var(--muted);">${s.p_value < 0.001 ? '<0.001' : s.p_value.toFixed(4)}</td>
+ <td style="padding:8px;">${sigBadge}</td>
+ <td style="padding:8px;text-align:center;">${s.avg_hit_position}</td>
+ <td style="padding:8px;text-align:center;">${s.best_rolling_100}</td>
+ <td style="padding:8px;text-align:center;">${s.worst_rolling_100}</td>
+ <td style="padding:8px;text-align:center;">${s.avg_confidence_when_hit}</td>
+ <td style="padding:8px;text-align:center;">${s.avg_confidence_when_miss}</td>
+ </tr>`;
+ }).join('');
+
+ // ── Head-to-Head Matrix ──
+ const h2hModels = ['gbm','cnn','transformer','statistical','meta_ensemble','random'];
+ let h2hHtml = '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:8px;">';
+ h2hHtml += '<tr><th style="padding:8px;"></th>' + h2hModels.map(m => `<th style="padding:8px;text-align:center;color:var(--accent);font-size:11px;">${modelNames[m]}</th>`).join('') + '</tr>';
+ for (const a of h2hModels) {
+ h2hHtml += `<tr style="border-bottom:1px solid rgba(0,0,0,0.06);"><td style="padding:8px;font-weight:600;font-size:11px;">${modelNames[a]}</td>`;
+ for (const b of h2hModels) {
+  if (a === b) { h2hHtml += '<td style="padding:8px;text-align:center;color:var(--muted);">-</td>'; continue; }
+  // Find the matchup in either direction
+  const key1 = a + '_vs_' + b;
+  const key2 = b + '_vs_' + a;
+  const match = h2h[key1] || h2h[key2];
+  if (!match) { h2hHtml += '<td style="padding:8px;text-align:center;color:var(--muted);">-</td>'; continue; }
+  // Extract wins for model a
+  let winsA = match[a + '_wins'] || 0;
+  let winsB = match[b + '_wins'] || 0;
+  const color = winsA > winsB ? 'var(--green)' : winsA < winsB ? 'var(--red)' : 'var(--muted)';
+  h2hHtml += `<td style="padding:8px;text-align:center;font-weight:600;color:${color};">${winsA}-${winsB}</td>`;
+ }
+ h2hHtml += '</tr>';
+ }
+ h2hHtml += '</table>';
+ document.getElementById('mlH2H').innerHTML = h2hHtml;
+
+ // ── Current Predictions ──
+ const predModels = ['gbm','cnn','transformer','statistical','meta_ensemble'];
+ let predsHtml = '';
+ for (const m of predModels) {
+ const mPreds = preds[m];
+ if (!mPreds || !mPreds.length) continue;
+ const top10 = mPreds.slice(0, 10);
+ predsHtml += `<div style="background:rgba(0,51,102,0.03);border:1px solid rgba(0,0,0,0.08);border-radius:10px;padding:14px;">
+ <div style="font-weight:700;font-size:13px;color:var(--accent);margin-bottom:10px;">${modelNames[m]}</div>
+ <div style="display:flex;flex-wrap:wrap;gap:6px;">`;
+ top10.forEach((p, i) => {
+  const pair = (p.pair || '').padStart(2,'0');
+  const d1 = pair[0], d2 = pair[1];
+  const bg = i < 3 ? 'rgba(0,166,81,0.12)' : 'rgba(0,0,0,0.04)';
+  const border = i < 3 ? 'rgba(0,166,81,0.3)' : 'rgba(0,0,0,0.08)';
+  predsHtml += `<div style="background:${bg};border:1px solid ${border};border-radius:8px;padding:6px 10px;text-align:center;min-width:42px;">
+  <div style="font-size:16px;font-weight:700;color:var(--accent);">${d1}-${d2}</div>
+  <div style="font-size:9px;color:var(--muted);">#${i+1}</div>
+  </div>`;
+ });
+ predsHtml += '</div></div>';
+ }
+ document.getElementById('mlPredictions').innerHTML = predsHtml;
+
+ // ── Multi-Model Agreement ──
+ if (agree.length > 0) {
+ let agreeHtml = '<div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:12px;">';
+ agree.forEach(a => {
+  const pair = (a.pair || '').padStart(2,'0');
+  const d1 = pair[0], d2 = pair[1];
+  agreeHtml += `<div style="background:rgba(0,166,81,0.1);border:2px solid rgba(0,166,81,0.3);border-radius:12px;padding:14px 20px;text-align:center;">
+  <div style="font-size:28px;font-weight:700;color:var(--accent);">${d1}-${d2}</div>
+  <div style="font-size:12px;color:var(--green);font-weight:600;margin:4px 0;">${a.models_agreeing} models agree</div>
+  <div style="font-size:10px;color:var(--muted);">${(a.models||[]).map(m => modelNames[m]||m).join(', ')}</div>
+  </div>`;
+ });
+ agreeHtml += '</div>';
+ document.getElementById('mlAgreement').innerHTML = agreeHtml;
+ } else {
+ document.getElementById('mlAgreement').innerHTML = '<div style="color:var(--muted);padding:12px;">No pairs with 3+ model agreement found.</div>';
+ }
 }
 
 // =========================================================================
